@@ -64997,7 +64997,7 @@ var createStream = async () => {
   if (raw) {
     return void 0;
   }
-  const pretty = await import("./pino-pretty-QT65QY5M.js");
+  const pretty = await import("./pino-pretty-DZ5PPZHG.js");
   return pretty.default(createPrettyConfig());
 };
 var options = {
