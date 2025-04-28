@@ -41046,6 +41046,13 @@ var require_lib22 = __commonJS2({
     }
   }
 });
+var TEEMode = /* @__PURE__ */ ((TEEMode2) => {
+  TEEMode2["OFF"] = "OFF";
+  TEEMode2["LOCAL"] = "LOCAL";
+  TEEMode2["DOCKER"] = "DOCKER";
+  TEEMode2["PRODUCTION"] = "PRODUCTION";
+  return TEEMode2;
+})(TEEMode || {});
 var esm_exports6 = {};
 __export2(esm_exports6, {
   BrowserClient: () => BrowserClient,
@@ -65096,7 +65103,7 @@ function parseBooleanFromText(value) {
 var uuidSchema = external_exports.string().uuid();
 
 // src/providers/wallet.ts
-import { PhalaDeriveKeyProvider, TEEMode } from "@elizaos/plugin-tee";
+import { PhalaDeriveKeyProvider } from "@elizaos/plugin-tee";
 import {
   http,
   createPublicClient,
