@@ -1,11 +1,11 @@
-import { type IAgentRuntime, Service, elizaLogger } from '@elizaos/core';
+import { type IAgentRuntime, Service, elizaLogger } from "@elizaos/core";
 import {
   CACHE_REFRESH_INTERVAL_MS,
   EVM_SERVICE_NAME,
   EVM_WALLET_DATA_CACHE_KEY,
-} from './constants';
-import { type WalletProvider, initWalletProvider } from './providers/wallet';
-import type { SupportedChain } from './types';
+} from "./constants";
+import { type WalletProvider, initWalletProvider } from "./providers/wallet";
+import type { SupportedChain } from "./types";
 
 export interface EVMWalletData {
   address: string;
@@ -21,7 +21,7 @@ export interface EVMWalletData {
 
 export class EVMService extends Service {
   static serviceType: string = EVM_SERVICE_NAME;
-  capabilityDescription = 'EVM blockchain wallet access';
+  capabilityDescription = "EVM blockchain wallet access";
 
   private walletProvider: WalletProvider | null = null;
   private refreshInterval: NodeJS.Timeout | null = null;
@@ -32,7 +32,7 @@ export class EVMService extends Service {
   }
 
   static async start(runtime: IAgentRuntime): Promise<EVMService> {
-    elizaLogger.log('Initializing EVMService');
+    elizaLogger.log("Initializing EVMService");
 
     const evmService = new EVMService(runtime);
 
@@ -52,14 +52,14 @@ export class EVMService extends Service {
       CACHE_REFRESH_INTERVAL_MS
     );
 
-    elizaLogger.log('EVM service initialized');
+    elizaLogger.log("EVM service initialized");
     return evmService;
   }
 
   static async stop(runtime: IAgentRuntime) {
     const service = runtime.getService(EVM_SERVICE_NAME);
     if (!service) {
-      elizaLogger.error('EVMService not found');
+      elizaLogger.error("EVMService not found");
       return;
     }
     await service.stop();
@@ -70,7 +70,7 @@ export class EVMService extends Service {
       clearInterval(this.refreshInterval);
       this.refreshInterval = null;
     }
-    elizaLogger.log('EVM service shutdown');
+    elizaLogger.log("EVM service shutdown");
   }
 
   async refreshWalletData(): Promise<void> {
@@ -86,7 +86,9 @@ export class EVMService extends Service {
       const chainDetails = Object.entries(balances)
         .map(([chainName, balance]) => {
           try {
-            const chain = this.walletProvider!.getChainConfigs(chainName as SupportedChain);
+            const chain = this.walletProvider!.getChainConfigs(
+              chainName as SupportedChain
+            );
             return {
               chainName,
               balance,
@@ -103,7 +105,7 @@ export class EVMService extends Service {
 
       const walletData: EVMWalletData = {
         address,
-        chains: chainDetails as EVMWalletData['chains'],
+        chains: chainDetails as EVMWalletData["chains"],
         timestamp: Date.now(),
       };
 
@@ -112,34 +114,39 @@ export class EVMService extends Service {
       this.lastRefreshTimestamp = walletData.timestamp;
 
       elizaLogger.log(
-        'EVM wallet data refreshed for chains:',
-        chainDetails.map((c) => c?.chainName).join(', ')
+        "EVM wallet data refreshed for chains:",
+        chainDetails.map((c) => c?.chainName).join(", ")
       );
     } catch (error) {
-      elizaLogger.error('Error refreshing EVM wallet data:', error);
+      elizaLogger.error("Error refreshing EVM wallet data:", error);
     }
   }
 
-  async getCachedData(): Promise<EVMWalletData | null> {
+  async getCachedData(): Promise<EVMWalletData | undefined> {
     try {
-      const cachedData = await this.runtime.getCache<EVMWalletData>(EVM_WALLET_DATA_CACHE_KEY);
+      const cachedData = await this.runtime.getCache<EVMWalletData>(
+        EVM_WALLET_DATA_CACHE_KEY
+      );
 
       const now = Date.now();
       // If data is stale or doesn't exist, refresh it
-      if (!cachedData || now - cachedData.timestamp > CACHE_REFRESH_INTERVAL_MS) {
-        elizaLogger.log('EVM wallet data is stale, refreshing...');
+      if (
+        !cachedData ||
+        now - cachedData.timestamp > CACHE_REFRESH_INTERVAL_MS
+      ) {
+        elizaLogger.log("EVM wallet data is stale, refreshing...");
         await this.refreshWalletData();
         return this.runtime.getCache<EVMWalletData>(EVM_WALLET_DATA_CACHE_KEY);
       }
 
       return cachedData;
     } catch (error) {
-      elizaLogger.error('Error getting cached EVM wallet data:', error);
-      return null;
+      elizaLogger.error("Error getting cached EVM wallet data:", error);
+      return undefined;
     }
   }
 
-  async forceUpdate(): Promise<EVMWalletData | null> {
+  async forceUpdate(): Promise<EVMWalletData | undefined> {
     await this.refreshWalletData();
     return this.getCachedData();
   }

@@ -6,12 +6,12 @@ import {
   ModelType,
   type State,
   composePrompt,
-} from '@elizaos/core';
-import { type ByteArray, type Hex, formatEther, parseEther } from 'viem';
+} from "@elizaos/core";
+import { type ByteArray, type Hex, formatEther, parseEther } from "viem";
 
-import { type WalletProvider, initWalletProvider } from '../providers/wallet';
-import { transferTemplate } from '../templates';
-import type { Transaction, TransferParams } from '../types';
+import { type WalletProvider, initWalletProvider } from "../providers/wallet";
+import { transferTemplate } from "../templates";
+import type { Transaction, TransferParams } from "../types";
 
 // Exported for tests
 export class TransferAction {
@@ -19,7 +19,7 @@ export class TransferAction {
 
   async transfer(params: TransferParams): Promise<Transaction> {
     if (!params.data) {
-      params.data = '0x';
+      params.data = "0x";
     }
 
     const walletClient = this.walletProvider.getWalletClient(params.fromChain);
@@ -32,24 +32,29 @@ export class TransferAction {
         data: params.data as Hex,
         kzg: {
           blobToKzgCommitment: (_: ByteArray): ByteArray => {
-            throw new Error('Function not implemented.');
+            throw new Error("Function not implemented.");
           },
-          computeBlobKzgProof: (_blob: ByteArray, _commitment: ByteArray): ByteArray => {
-            throw new Error('Function not implemented.');
+          computeBlobKzgProof: (
+            _blob: ByteArray,
+            _commitment: ByteArray
+          ): ByteArray => {
+            throw new Error("Function not implemented.");
           },
         },
         chain: undefined,
-      });
+      } as any);
 
       return {
         hash,
-        from: walletClient.account.address,
+        from: walletClient.account?.address as `0x${string}`,
         to: params.toAddress,
         value: parseEther(params.amount),
         data: params.data as Hex,
       };
     } catch (error) {
-      throw new Error(`Transfer failed: ${error.message}`);
+      throw new Error(
+        `Transfer failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 }
@@ -60,7 +65,7 @@ const buildTransferDetails = async (
   wp: WalletProvider
 ): Promise<TransferParams> => {
   const chains = wp.getSupportedChains();
-  state.supportedChains = chains.map((item) => `"${item}"`).join('|');
+  state.supportedChains = chains.map((item) => `"${item}"`).join("|");
 
   // Add balances to state for better context in template
   const balances = await wp.getWalletBalances();
@@ -69,7 +74,7 @@ const buildTransferDetails = async (
       const chainConfig = wp.getChainConfigs(chain as any);
       return `${chain}: ${balance} ${chainConfig.nativeCurrency.symbol}`;
     })
-    .join(', ');
+    .join(", ");
 
   const context = composePrompt({
     state,
@@ -84,9 +89,9 @@ const buildTransferDetails = async (
 
   if (!existingChain) {
     throw new Error(
-      'The chain ' +
+      "The chain " +
         transferDetails.fromChain +
-        ' not configured yet. Add the chain or choose one from configured: ' +
+        " not configured yet. Add the chain or choose one from configured: " +
         chains.toString()
     );
   }
@@ -95,12 +100,12 @@ const buildTransferDetails = async (
 };
 
 export const transferAction: Action = {
-  name: 'EVM_TRANSFER_TOKENS',
-  description: 'Transfer tokens between addresses on the same chain',
+  name: "EVM_TRANSFER_TOKENS",
+  description: "Transfer tokens between addresses on the same chain",
   handler: async (
     runtime: IAgentRuntime,
     message: Memory,
-    state: State,
+    state: State | undefined,
     _options: any,
     callback?: HandlerCallback
   ) => {
@@ -112,7 +117,11 @@ export const transferAction: Action = {
     const action = new TransferAction(walletProvider);
 
     // Compose transfer context
-    const paramOptions = await buildTransferDetails(state, runtime, walletProvider);
+    const paramOptions = await buildTransferDetails(
+      state,
+      runtime,
+      walletProvider
+    );
 
     try {
       const transferResp = await action.transfer(paramOptions);
@@ -130,37 +139,44 @@ export const transferAction: Action = {
       }
       return true;
     } catch (error) {
-      console.error('Error during token transfer:', error);
+      console.error("Error during token transfer:", error);
       if (callback) {
         callback({
-          text: `Error transferring tokens: ${error.message}`,
-          content: { error: error.message },
+          text: `Error transferring tokens: ${error instanceof Error ? error.message : String(error)}`,
+          content: {
+            error: error instanceof Error ? error.message : String(error),
+          },
         });
       }
       return false;
     }
   },
   validate: async (runtime: IAgentRuntime) => {
-    const privateKey = runtime.getSetting('EVM_PRIVATE_KEY');
-    return typeof privateKey === 'string' && privateKey.startsWith('0x');
+    const privateKey = runtime.getSetting("EVM_PRIVATE_KEY");
+    return typeof privateKey === "string" && privateKey.startsWith("0x");
   },
   examples: [
     [
       {
-        name: 'assistant',
+        name: "assistant",
         content: {
           text: "I'll help you transfer 1 ETH to 0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-          action: 'SEND_TOKENS',
+          action: "SEND_TOKENS",
         },
       },
       {
-        name: 'user',
+        name: "user",
         content: {
-          text: 'Transfer 1 ETH to 0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-          action: 'SEND_TOKENS',
+          text: "Transfer 1 ETH to 0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+          action: "SEND_TOKENS",
         },
       },
     ],
   ],
-  similes: ['EVM_TRANSFER', 'EVM_SEND_TOKENS', 'EVM_TOKEN_TRANSFER', 'EVM_MOVE_TOKENS'],
+  similes: [
+    "EVM_TRANSFER",
+    "EVM_SEND_TOKENS",
+    "EVM_TOKEN_TRANSFER",
+    "EVM_MOVE_TOKENS",
+  ],
 };

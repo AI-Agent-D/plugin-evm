@@ -1,8 +1,17 @@
-import type { IAgentRuntime, Memory, State, HandlerCallback } from '@elizaos/core';
-import { WalletProvider } from '../providers/wallet';
-import { queueProposalTemplate } from '../templates';
-import type { QueueProposalParams, SupportedChain, Transaction } from '../types';
-import governorArtifacts from '../contracts/artifacts/OZGovernor.json';
+import type {
+  IAgentRuntime,
+  Memory,
+  State,
+  HandlerCallback,
+} from "@elizaos/core";
+import { WalletProvider } from "../providers/wallet";
+import { queueProposalTemplate } from "../templates";
+import type {
+  QueueProposalParams,
+  SupportedChain,
+  Transaction,
+} from "../types";
+import governorArtifacts from "../contracts/artifacts/OZGovernor.json";
 import {
   type ByteArray,
   type Hex,
@@ -10,7 +19,7 @@ import {
   keccak256,
   stringToHex,
   type Address,
-} from 'viem';
+} from "viem";
 
 export { queueProposalTemplate };
 
@@ -26,7 +35,7 @@ export class QueueAction {
 
     const txData = encodeFunctionData({
       abi: governorArtifacts.abi,
-      functionName: 'queue',
+      functionName: "queue",
       args: [params.targets, params.values, params.calldatas, descriptionHash],
     });
 
@@ -44,13 +53,16 @@ export class QueueAction {
         chain: chainConfig,
         kzg: {
           blobToKzgCommitment: (_blob: ByteArray): ByteArray => {
-            throw new Error('Function not implemented.');
+            throw new Error("Function not implemented.");
           },
-          computeBlobKzgProof: (_blob: ByteArray, _commitment: ByteArray): ByteArray => {
-            throw new Error('Function not implemented.');
+          computeBlobKzgProof: (
+            _blob: ByteArray,
+            _commitment: ByteArray
+          ): ByteArray => {
+            throw new Error("Function not implemented.");
           },
         },
-      });
+      } as any);
 
       const receipt = await publicClient.waitForTransactionReceipt({
         hash,
@@ -58,7 +70,7 @@ export class QueueAction {
 
       return {
         hash,
-        from: walletClient.account.address,
+        from: walletClient.account?.address as `0x${string}`,
         to: params.governor,
         value: BigInt(0),
         data: txData as Hex,
@@ -66,14 +78,16 @@ export class QueueAction {
         logs: receipt.logs,
       };
     } catch (error) {
-      throw new Error(`Vote failed: ${error.message}`);
+      throw new Error(
+        `Vote failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 }
 
 export const queueAction = {
-  name: 'queue',
-  description: 'Queue a DAO governance proposal for execution',
+  name: "queue",
+  description: "Queue a DAO governance proposal for execution",
   handler: async (
     runtime: IAgentRuntime,
     _message: Memory,
@@ -91,7 +105,7 @@ export const queueAction = {
         !options.calldatas ||
         !options.description
       ) {
-        throw new Error('Missing required parameters for queue proposal');
+        throw new Error("Missing required parameters for queue proposal");
       }
 
       // Convert options to QueueProposalParams
@@ -104,33 +118,38 @@ export const queueAction = {
         description: String(options.description),
       };
 
-      const privateKey = runtime.getSetting('EVM_PRIVATE_KEY') as `0x${string}`;
+      const privateKey = runtime.getSetting("EVM_PRIVATE_KEY") as `0x${string}`;
       const walletProvider = new WalletProvider(privateKey, runtime);
       const action = new QueueAction(walletProvider);
       return await action.queue(queueParams);
     } catch (error) {
-      console.error('Error in queue handler:', error.message);
+      console.error(
+        "Error in queue handler:",
+        error instanceof Error ? error.message : String(error)
+      );
       if (callback) {
-        callback({ text: `Error: ${error.message}` });
+        callback({
+          text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+        });
       }
       return false;
     }
   },
   template: queueProposalTemplate,
   validate: async (runtime: IAgentRuntime) => {
-    const privateKey = runtime.getSetting('EVM_PRIVATE_KEY');
-    return typeof privateKey === 'string' && privateKey.startsWith('0x');
+    const privateKey = runtime.getSetting("EVM_PRIVATE_KEY");
+    return typeof privateKey === "string" && privateKey.startsWith("0x");
   },
   examples: [
     [
       {
-        user: 'user',
+        user: "user",
         content: {
-          text: 'Queue proposal 123 on the governor at 0x1234567890123456789012345678901234567890 on Ethereum',
-          action: 'QUEUE_PROPOSAL',
+          text: "Queue proposal 123 on the governor at 0x1234567890123456789012345678901234567890 on Ethereum",
+          action: "QUEUE_PROPOSAL",
         },
       },
     ],
   ],
-  similes: ['QUEUE_PROPOSAL', 'GOVERNANCE_QUEUE'],
+  similes: ["QUEUE_PROPOSAL", "GOVERNANCE_QUEUE"],
 }; // TODO: add more examples

@@ -1,8 +1,17 @@
-import type { IAgentRuntime, Memory, State, HandlerCallback } from '@elizaos/core';
-import { WalletProvider } from '../providers/wallet';
-import { executeProposalTemplate } from '../templates';
-import type { ExecuteProposalParams, SupportedChain, Transaction } from '../types';
-import governorArtifacts from '../contracts/artifacts/OZGovernor.json';
+import type {
+  IAgentRuntime,
+  Memory,
+  State,
+  HandlerCallback,
+} from "@elizaos/core";
+import { WalletProvider } from "../providers/wallet";
+import { executeProposalTemplate } from "../templates";
+import type {
+  ExecuteProposalParams,
+  SupportedChain,
+  Transaction,
+} from "../types";
+import governorArtifacts from "../contracts/artifacts/OZGovernor.json";
 import {
   type ByteArray,
   type Hex,
@@ -10,7 +19,7 @@ import {
   encodeFunctionData,
   keccak256,
   stringToHex,
-} from 'viem';
+} from "viem";
 
 export { executeProposalTemplate };
 
@@ -26,7 +35,7 @@ export class ExecuteAction {
 
     const txData = encodeFunctionData({
       abi: governorArtifacts.abi,
-      functionName: 'execute',
+      functionName: "execute",
       args: [params.targets, params.values, params.calldatas, descriptionHash],
     });
 
@@ -44,13 +53,16 @@ export class ExecuteAction {
         chain: chainConfig,
         kzg: {
           blobToKzgCommitment: (_blob: ByteArray): ByteArray => {
-            throw new Error('Function not implemented.');
+            throw new Error("Function not implemented.");
           },
-          computeBlobKzgProof: (_blob: ByteArray, _commitment: ByteArray): ByteArray => {
-            throw new Error('Function not implemented.');
+          computeBlobKzgProof: (
+            _blob: ByteArray,
+            _commitment: ByteArray
+          ): ByteArray => {
+            throw new Error("Function not implemented.");
           },
         },
-      });
+      } as any);
 
       const receipt = await publicClient.waitForTransactionReceipt({
         hash,
@@ -58,22 +70,24 @@ export class ExecuteAction {
 
       return {
         hash,
-        from: walletClient.account.address,
+        from: walletClient.account?.address as `0x${string}`,
         to: params.governor,
         value: BigInt(0),
         data: txData as Hex,
         chainId: this.walletProvider.getChainConfigs(params.chain).id,
         logs: receipt.logs,
       };
-    } catch (error) {
-      throw new Error(`Vote failed: ${error.message}`);
+    } catch (error: unknown) {
+      throw new Error(
+        `Vote failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 }
 
 export const executeAction = {
-  name: 'execute',
-  description: 'Execute a DAO governance proposal',
+  name: "execute",
+  description: "Execute a DAO governance proposal",
   handler: async (
     runtime: IAgentRuntime,
     _message: Memory,
@@ -92,7 +106,7 @@ export const executeAction = {
         !options.calldatas ||
         !options.description
       ) {
-        throw new Error('Missing required parameters for execute proposal');
+        throw new Error("Missing required parameters for execute proposal");
       }
 
       // Convert options to ExecuteProposalParams
@@ -106,33 +120,37 @@ export const executeAction = {
         description: String(options.description),
       };
 
-      const privateKey = runtime.getSetting('EVM_PRIVATE_KEY') as `0x${string}`;
+      const privateKey = runtime.getSetting("EVM_PRIVATE_KEY") as `0x${string}`;
       const walletProvider = new WalletProvider(privateKey, runtime);
       const action = new ExecuteAction(walletProvider);
       return await action.execute(executeParams);
     } catch (error) {
-      console.error('Error in execute handler:', error.message);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error("Error in execute handler:", errMsg);
       if (callback) {
-        callback({ text: `Error: ${error.message}` });
+        callback({
+          text: `Error: ${errMsg}`,
+          content: { error: errMsg },
+        });
       }
       return false;
     }
   },
   template: executeProposalTemplate,
   validate: async (runtime: IAgentRuntime) => {
-    const privateKey = runtime.getSetting('EVM_PRIVATE_KEY');
-    return typeof privateKey === 'string' && privateKey.startsWith('0x');
+    const privateKey = runtime.getSetting("EVM_PRIVATE_KEY");
+    return typeof privateKey === "string" && privateKey.startsWith("0x");
   },
   examples: [
     [
       {
-        user: 'user',
+        user: "user",
         content: {
-          text: 'Execute proposal 123 on the governor at 0x1234567890123456789012345678901234567890 on Ethereum',
-          action: 'EXECUTE_PROPOSAL',
+          text: "Execute proposal 123 on the governor at 0x1234567890123456789012345678901234567890 on Ethereum",
+          action: "EXECUTE_PROPOSAL",
         },
       },
     ],
   ],
-  similes: ['EXECUTE_PROPOSAL', 'GOVERNANCE_EXECUTE'],
+  similes: ["EXECUTE_PROPOSAL", "GOVERNANCE_EXECUTE"],
 }; // TODO: add more examples
