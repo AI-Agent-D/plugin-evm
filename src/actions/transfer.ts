@@ -24,23 +24,16 @@ export class TransferAction {
 
     const walletClient = this.walletProvider.getWalletClient(params.fromChain);
 
+    if (!walletClient.account) {
+      throw new Error('Wallet account is not available');
+    }
+
     try {
       const hash = await walletClient.sendTransaction({
         account: walletClient.account,
         to: params.toAddress,
         value: parseEther(params.amount),
         data: params.data as Hex,
-        kzg: {
-          blobToKzgCommitment: (_: ByteArray): ByteArray => {
-            throw new Error("Function not implemented.");
-          },
-          computeBlobKzgProof: (
-            _blob: ByteArray,
-            _commitment: ByteArray
-          ): ByteArray => {
-            throw new Error("Function not implemented.");
-          },
-        },
         chain: undefined,
       } as any);
 
@@ -51,10 +44,9 @@ export class TransferAction {
         value: parseEther(params.amount),
         data: params.data as Hex,
       };
-    } catch (error) {
-      throw new Error(
-        `Transfer failed: ${error instanceof Error ? error.message : String(error)}`
-      );
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Transfer failed: ${errorMessage}`);
     }
   }
 }
@@ -138,14 +130,13 @@ export const transferAction: Action = {
         });
       }
       return true;
-    } catch (error) {
-      console.error("Error during token transfer:", error);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error during token transfer:', errorMessage);
       if (callback) {
         callback({
-          text: `Error transferring tokens: ${error instanceof Error ? error.message : String(error)}`,
-          content: {
-            error: error instanceof Error ? error.message : String(error),
-          },
+          text: `Error transferring tokens: ${errorMessage}`,
+          content: { error: errorMessage },
         });
       }
       return false;

@@ -41,7 +41,7 @@ export class BridgeAction {
           chainName: config.name,
           nativeCurrency: config.nativeCurrency,
           rpcUrls: [config.rpcUrls.default.http[0]],
-          blockExplorerUrls: [config.blockExplorers?.default.url],
+          blockExplorerUrls: [config?.blockExplorers?.default?.url],
         },
         diamondAddress: "0x0000000000000000000000000000000000000000",
         coin: config.nativeCurrency.symbol,
@@ -173,13 +173,15 @@ export const bridgeAction = {
         });
       }
       return true;
-    } catch (error: unknown) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error("Error in bridge handler:", errMsg);
+    } catch (error) {
+      console.error(
+        'Error in bridge handler:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
       if (callback) {
         callback({
-          text: `Error: ${errMsg}`,
-          content: { error: errMsg },
+          text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          content: { error: error instanceof Error ? error.message : 'Unknown error' },
         });
       }
       return false;

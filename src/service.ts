@@ -136,7 +136,8 @@ export class EVMService extends Service {
       ) {
         elizaLogger.log("EVM wallet data is stale, refreshing...");
         await this.refreshWalletData();
-        return this.runtime.getCache<EVMWalletData>(EVM_WALLET_DATA_CACHE_KEY);
+        const refreshedData = await this.runtime.getCache<EVMWalletData>(EVM_WALLET_DATA_CACHE_KEY);
+        return refreshedData || null;
       }
 
       return cachedData;

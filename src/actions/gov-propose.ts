@@ -29,6 +29,10 @@ export class ProposeAction {
   async propose(params: ProposeProposalParams): Promise<Transaction> {
     const walletClient = this.walletProvider.getWalletClient(params.chain);
 
+    if (!walletClient.account) {
+      throw new Error('Wallet account is not available');
+    }
+
     const txData = encodeFunctionData({
       abi: governorArtifacts.abi,
       functionName: "propose",
@@ -52,18 +56,7 @@ export class ProposeAction {
         value: BigInt(0),
         data: txData as Hex,
         chain: chainConfig,
-        kzg: {
-          blobToKzgCommitment: (_blob: ByteArray): ByteArray => {
-            throw new Error("Function not implemented.");
-          },
-          computeBlobKzgProof: (
-            _blob: ByteArray,
-            _commitment: ByteArray
-          ): ByteArray => {
-            throw new Error("Function not implemented.");
-          },
-        },
-      } as any);
+      });
 
       const receipt = await publicClient.waitForTransactionReceipt({
         hash,
@@ -79,9 +72,8 @@ export class ProposeAction {
         logs: receipt.logs,
       };
     } catch (error: unknown) {
-      throw new Error(
-        `Vote failed: ${error instanceof Error ? error.message : String(error)}`
-      );
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Vote failed: ${errorMessage}`);
     }
   }
 }
@@ -124,14 +116,10 @@ export const proposeAction = {
       const action = new ProposeAction(walletProvider);
       return await action.propose(proposeParams);
     } catch (error: unknown) {
-      console.error(
-        "Error in propose handler:",
-        error instanceof Error ? error.message : String(error)
-      );
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error in propose handler:', errorMessage);
       if (callback) {
-        callback({
-          text: `Error: ${error instanceof Error ? error.message : String(error)}`,
-        });
+        callback({ text: `Error: ${errorMessage}` });
       }
       return false;
     }

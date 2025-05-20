@@ -7,8 +7,9 @@ import {
   type State,
   elizaLogger,
   TEEMode,
+  ServiceType,
+  getTypedService,
 } from '@elizaos/core';
-import { PhalaDeriveKeyProvider } from '@elizaos/plugin-tee';
 import type {
   Account,
   Address,
@@ -31,14 +32,13 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
 
-import { EVM_SERVICE_NAME } from "../constants";
-import type { EVMService } from "../service";
-import type { SupportedChain, WalletBalance } from "../types";
+import { EVM_SERVICE_NAME } from '../constants';
+import type { SupportedChain } from '../types';
 
 export class WalletProvider {
   private cacheKey = "evm/wallet";
   chains: Record<string, Chain> = { ...viemChains };
-  account: PrivateKeyAccount | any;
+  account!: PrivateKeyAccount;
   runtime: IAgentRuntime;
   constructor(
     accountOrPrivateKey: PrivateKeyAccount | `0x${string}`,
@@ -212,8 +212,7 @@ const genChainsFromRuntime = (
   runtime: IAgentRuntime
 ): Record<string, Chain> => {
   // Get chains from settings or use default supported chains
-  const configuredChains =
-    (runtime.character.settings?.chains?.evm as SupportedChain[]) || [];
+  const configuredChains = (runtime?.character?.settings?.chains?.evm as SupportedChain[]) || [];
 
   // Default chains to include if not specified in settings
   const defaultChains = [
@@ -269,12 +268,21 @@ export const initWalletProvider = async (runtime: IAgentRuntime) => {
       throw new Error("WALLET_SECRET_SALT required when TEE_MODE is enabled");
     }
 
-    const deriveKeyProvider = new PhalaDeriveKeyProvider(teeMode);
-    const deriveKeyResult = await deriveKeyProvider.deriveEcdsaKeypair(
-      walletSecretSalt,
-      "evm",
-      runtime.agentId
-    );
+    // Get the TEE service as a TypedService
+    const teeService = getTypedService(runtime, ServiceType.TEE);
+
+    if (!teeService) {
+      throw new Error('TEE service not found');
+    }
+
+    // Use the generic process method
+    const deriveKeyResult = await teeService.process({
+      action: 'deriveEcdsaKeypair',
+      salt: walletSecretSalt,
+      subject: 'evm',
+      agentId: runtime.agentId,
+    });
+
     return new WalletProvider(deriveKeyResult.keypair, runtime, chains);
   }
   const privateKey = runtime.getSetting("EVM_PRIVATE_KEY") as `0x${string}`;
