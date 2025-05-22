@@ -22,7 +22,8 @@
     "dist"
   ],
   "dependencies": {
-    "@elizaos/plugin-tee": "^1.0.0-beta.51",
+    "@elizaos/core-plugin-v2": "^1.0.0-beta",
+    "@elizaos/plugin-tee": "^1.0.0-beta",
     "@lifi/data-types": "5.15.5",
     "@lifi/sdk": "3.4.1",
     "@lifi/types": "16.3.0"
