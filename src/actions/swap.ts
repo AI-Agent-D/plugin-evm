@@ -1,5 +1,5 @@
-import type { IAgentRuntime, Memory, State } from "@elizaos/core";
-import { ModelType, composePrompt, elizaLogger } from "@elizaos/core";
+import type { IAgentRuntime, Memory, State } from "@elizaos/core-plugin-v2";
+import { ModelType, composePrompt, elizaLogger } from "@elizaos/core-plugin-v2";
 import {
   type ExtendedChain,
   type Route,

@@ -3,8 +3,8 @@ import type {
   IAgentRuntime,
   Memory,
   State,
-} from "@elizaos/core";
-import { composePrompt, ModelType } from "@elizaos/core";
+} from "@elizaos/core-plugin-v2";
+import { composePrompt, ModelType } from "@elizaos/core-plugin-v2";
 import {
   type ExtendedChain,
   createConfig,

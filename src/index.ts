@@ -5,7 +5,7 @@ export * from './providers/wallet';
 export * from './service';
 export * from './types';
 
-import type { Plugin } from '@elizaos/core';
+import type { Plugin } from '@elizaos/core-plugin-v2';
 import { bridgeAction } from './actions/bridge';
 import { swapAction } from './actions/swap';
 import { transferAction } from './actions/transfer';

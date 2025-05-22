@@ -6,7 +6,7 @@ import {
   type ProviderResult,
   type State,
   elizaLogger,
-} from "@elizaos/core";
+} from "@elizaos/core-plugin-v2";
 import { DeriveKeyProvider, TEEMode } from "@elizaos/plugin-tee";
 import type {
   Account,

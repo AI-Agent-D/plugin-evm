@@ -1,4 +1,4 @@
-import { type IAgentRuntime, Service, elizaLogger } from "@elizaos/core";
+import { type IAgentRuntime, Service, elizaLogger } from "@elizaos/core-plugin-v2";
 import {
   CACHE_REFRESH_INTERVAL_MS,
   EVM_SERVICE_NAME,
