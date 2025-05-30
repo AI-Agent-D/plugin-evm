@@ -9,7 +9,6 @@ export default defineConfig({
   format: ['esm'], // Ensure you're targeting CommonJS,
   dts: false,
   external: [
-    '@elizaos/core-plugin-v2',
     'dotenv', // Externalize dotenv to prevent bundling
     'fs', // Externalize fs to use Node.js built-in module
     'path', // Externalize other built-ins if necessary
@@ -18,7 +17,5 @@ export default defineConfig({
     'http',
     'agentkeepalive',
     'zod',
-    '@elizaos/core',
-    // Add other modules you want to externalize
   ],
 });
