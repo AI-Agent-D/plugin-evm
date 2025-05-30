@@ -1,12 +1,6 @@
-import type { IAgentRuntime, Memory, State } from "@elizaos/core-plugin-v2";
-import { ModelType, composePrompt, elizaLogger } from "@elizaos/core-plugin-v2";
-import {
-  type ExtendedChain,
-  type Route,
-  createConfig,
-  executeRoute,
-  getRoutes,
-} from "@lifi/sdk";
+import type { HandlerCallback, IAgentRuntime, Memory, State } from '@elizaos/core-plugin-v2';
+import { ModelType, composePrompt, elizaLogger } from '@elizaos/core-plugin-v2';
+import { type ExtendedChain, type Route, createConfig, executeRoute, getRoutes } from '@lifi/sdk';
 
 import {
   type Address,
@@ -15,11 +9,11 @@ import {
   encodeFunctionData,
   parseAbi,
   parseUnits,
-} from "viem";
-import { type WalletProvider, initWalletProvider } from "../providers/wallet";
-import { swapTemplate } from "../templates";
-import type { SwapParams, SwapQuote, Transaction } from "../types";
-import type { BebopRoute } from "../types/index";
+} from 'viem';
+import { type WalletProvider, initWalletProvider } from '../providers/wallet';
+import { swapTemplate } from '../templates';
+import type { SwapParams, SwapQuote, Transaction } from '../types';
+import type { BebopRoute } from '../types/index';
 
 export { swapTemplate };
 
@@ -36,14 +30,14 @@ export class SwapAction {
           id: config.id,
           name: config.name,
           key: config.name.toLowerCase(),
-          chainType: "EVM" as const,
+          chainType: 'EVM' as const,
           nativeToken: {
             ...config.nativeCurrency,
             chainId: config.id,
-            address: "0x0000000000000000000000000000000000000000",
+            address: '0x0000000000000000000000000000000000000000',
             coinKey: config.nativeCurrency.symbol,
-            priceUSD: "0",
-            logoURI: "",
+            priceUSD: '0',
+            logoURI: '',
             symbol: config.nativeCurrency.symbol,
             decimals: config.nativeCurrency.decimals,
             name: config.nativeCurrency.name,
@@ -65,23 +59,23 @@ export class SwapAction {
           },
           coin: config.nativeCurrency.symbol,
           mainnet: true,
-          diamondAddress: "0x0000000000000000000000000000000000000000",
+          diamondAddress: '0x0000000000000000000000000000000000000000',
         } as ExtendedChain);
       } catch {
         // Skip chains with missing config in viem
       }
     }
     this.lifiConfig = createConfig({
-      integrator: "eliza",
+      integrator: 'eliza',
       chains: lifiChains,
     });
     this.bebopChainsMap = {
-      mainnet: "ethereum",
-      optimism: "optimism",
-      polygon: "polygon",
-      arbitrum: "arbitrum",
-      base: "base",
-      linea: "linea",
+      mainnet: 'ethereum',
+      optimism: 'optimism',
+      polygon: 'polygon',
+      arbitrum: 'arbitrum',
+      base: 'base',
+      linea: 'linea',
     };
   }
 
@@ -90,27 +84,24 @@ export class SwapAction {
     const [fromAddress] = await walletClient.getAddresses();
 
     // Getting quotes from different aggregators and sorting them by minAmount (amount after slippage)
-    const sortedQuotes: SwapQuote[] = await this.getSortedQuotes(
-      fromAddress,
-      params
-    );
+    const sortedQuotes: SwapQuote[] = await this.getSortedQuotes(fromAddress, params);
 
     // Trying to execute the best quote by amount, fallback to the next one if it fails
     for (const quote of sortedQuotes) {
       let res;
       switch (quote.aggregator) {
-        case "lifi":
+        case 'lifi':
           res = await this.executeLifiQuote(quote);
           break;
-        case "bebop":
+        case 'bebop':
           res = await this.executeBebopQuote(quote, params);
           break;
         default:
-          throw new Error("No aggregator found");
+          throw new Error('No aggregator found');
       }
       if (res !== undefined) return res;
     }
-    throw new Error("Execution failed");
+    throw new Error('Execution failed');
   }
 
   private async getSortedQuotes(fromAddress: Address, params: SwapParams): Promise<SwapQuote[]> {
@@ -151,9 +142,9 @@ export class SwapAction {
           order: 'RECOMMENDED',
         },
       });
-      if (!routes.routes.length) throw new Error("No routes found");
+      if (!routes.routes.length) throw new Error('No routes found');
       return {
-        aggregator: "lifi",
+        aggregator: 'lifi',
         minOutputAmount: routes.routes[0].steps[0].estimate.toAmountMin,
         swapData: routes.routes[0],
       };
@@ -176,14 +167,14 @@ export class SwapAction {
         buy_tokens: params.toToken,
         sell_amounts: parseUnits(params.amount, fromTokenDecimals).toString(),
         taker_address: fromAddress,
-        approval_type: "Standard",
-        skip_validation: "true",
-        gasless: "false",
-        source: "eliza",
+        approval_type: 'Standard',
+        skip_validation: 'true',
+        gasless: 'false',
+        source: 'eliza',
       });
       const response = await fetch(`${url}?${reqParams.toString()}`, {
-        method: "GET",
-        headers: { accept: "application/json" },
+        method: 'GET',
+        headers: { accept: 'application/json' },
       });
       if (!response.ok) {
         throw Error(response.statusText);
@@ -201,11 +192,8 @@ export class SwapAction {
         gasPrice: data.routes[0].quote.tx.gasPrice.toString(),
       };
       return {
-        aggregator: "bebop",
-        minOutputAmount:
-          data.routes[0].quote.buyTokens[
-            params.toToken
-          ].minimumAmount.toString(),
+        aggregator: 'bebop',
+        minOutputAmount: data.routes[0].quote.buyTokens[params.toToken].minimumAmount.toString(),
         swapData: route,
       };
     } catch (error: unknown) {
@@ -215,19 +203,14 @@ export class SwapAction {
     }
   }
 
-  private async executeLifiQuote(
-    quote: SwapQuote
-  ): Promise<Transaction | undefined> {
+  private async executeLifiQuote(quote: SwapQuote): Promise<Transaction | undefined> {
     try {
       const route: Route = quote.swapData as Route;
-      const execution = await executeRoute(
-        quote.swapData as Route,
-        this.lifiConfig as any
-      );
+      const execution = await executeRoute(quote.swapData as Route, this.lifiConfig as any);
       const process = execution.steps[0]?.execution?.process[0];
 
-      if (!process?.status || process.status === "FAILED") {
-        throw new Error("Transaction failed");
+      if (!process?.status || process.status === 'FAILED') {
+        throw new Error('Transaction failed');
       }
       return {
         hash: process.txHash as `0x${string}`,
@@ -250,15 +233,13 @@ export class SwapAction {
   ): Promise<Transaction | undefined> {
     try {
       const bebopRoute: BebopRoute = quote.swapData as BebopRoute;
-      const allowanceAbi = parseAbi([
-        "function allowance(address,address) view returns (uint256)",
-      ]);
+      const allowanceAbi = parseAbi(['function allowance(address,address) view returns (uint256)']);
       const allowance: bigint = await this.walletProvider
         .getPublicClient(params.chain)
         .readContract({
           address: params.fromToken,
           abi: allowanceAbi,
-          functionName: "allowance",
+          functionName: 'allowance',
           args: [bebopRoute.from, bebopRoute.approvalTarget],
         });
 
@@ -270,8 +251,8 @@ export class SwapAction {
 
       if (allowance < BigInt(bebopRoute.sellAmount)) {
         const approvalData = encodeFunctionData({
-          abi: parseAbi(["function approve(address,uint256)"]),
-          functionName: "approve",
+          abi: parseAbi(['function approve(address,uint256)']),
+          functionName: 'approve',
           args: [bebopRoute.approvalTarget, BigInt(bebopRoute.sellAmount)],
         });
         await walletClient.sendTransaction({
@@ -312,7 +293,7 @@ const buildSwapDetails = async (
   wp: WalletProvider
 ): Promise<SwapParams> => {
   const chains = wp.getSupportedChains();
-  state.supportedChains = chains.map((item) => `"${item}"`).join("|");
+  state.supportedChains = chains.map((item) => `"${item}"`).join('|');
 
   // Add balances to state for better context in template
   const balances = await wp.getWalletBalances();
@@ -321,7 +302,7 @@ const buildSwapDetails = async (
       const chainConfig = wp.getChainConfigs(chain as any);
       return `${chain}: ${balance} ${chainConfig.nativeCurrency.symbol}`;
     })
-    .join(", ");
+    .join(', ');
 
   const context = composePrompt({
     state,
@@ -335,34 +316,32 @@ const buildSwapDetails = async (
   // Validate chain exists
   const chain = swapDetails.chain;
   if (!wp.chains[chain]) {
-    throw new Error(
-      `Chain ${chain} not configured. Available chains: ${chains.join(", ")}`
-    );
+    throw new Error(`Chain ${chain} not configured. Available chains: ${chains.join(', ')}`);
   }
 
   return swapDetails;
 };
 
 export const swapAction = {
-  name: "EVM_SWAP_TOKENS",
-  description: "Swap tokens on the same chain",
+  name: 'EVM_SWAP_TOKENS',
+  description: 'Swap tokens on the same chain',
   handler: async (
     runtime: IAgentRuntime,
     _message: Memory,
-    state: State,
-    _options: any,
-    callback: any
+    state?: State,
+    _options?: any,
+    callback?: HandlerCallback
   ) => {
     const walletProvider = await initWalletProvider(runtime);
     const action = new SwapAction(walletProvider);
 
     try {
       // Get swap parameters
-      const swapOptions = await buildSwapDetails(
-        state,
-        runtime,
-        walletProvider
-      );
+      if (!state) {
+        state = await runtime.composeState(_message);
+      }
+
+      const swapOptions = await buildSwapDetails(state, runtime, walletProvider);
 
       const swapResp = await action.swap(swapOptions);
       if (callback) {
@@ -390,19 +369,20 @@ export const swapAction = {
   },
   template: swapTemplate,
   validate: async (runtime: IAgentRuntime) => {
-    const privateKey = runtime.getSetting("EVM_PRIVATE_KEY");
-    return typeof privateKey === "string" && privateKey.startsWith("0x");
+    const privateKey = runtime.getSetting('EVM_PRIVATE_KEY');
+    return typeof privateKey === 'string' && privateKey.startsWith('0x');
   },
   examples: [
     [
       {
-        user: "user",
+        name: 'user',
+        user: 'user',
         content: {
-          text: "Swap 1 WETH for USDC on Arbitrum",
-          action: "TOKEN_SWAP",
+          text: 'Swap 1 WETH for USDC on Arbitrum',
+          action: 'TOKEN_SWAP',
         },
       },
     ],
   ],
-  similes: ["TOKEN_SWAP", "EXCHANGE_TOKENS", "TRADE_TOKENS"],
+  similes: ['TOKEN_SWAP', 'EXCHANGE_TOKENS', 'TRADE_TOKENS'],
 };

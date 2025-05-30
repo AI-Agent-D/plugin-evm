@@ -18,7 +18,7 @@ export const evmPlugin: Plugin = {
   providers: [evmWalletProvider],
   evaluators: [],
   services: [EVMService],
-  actions: [transferAction as any, bridgeAction as any, swapAction as any],
+  actions: [transferAction, bridgeAction, swapAction],
 };
 
 export default evmPlugin;
