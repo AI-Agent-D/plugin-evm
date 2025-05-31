@@ -62,6 +62,6 @@
   "gitHead": "646c632924826e2b75c2304a75ee56959fe4a460",
   "repository": {
     "type": "git",
-    "url": "https://github.com/elizaos-plugins/plugin-evm.git"
+    "url": "git+https://github.com/elizaos-plugins/plugin-evm.git"
   }
 }
