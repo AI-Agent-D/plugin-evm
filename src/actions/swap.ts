@@ -1,5 +1,5 @@
-import type { HandlerCallback, IAgentRuntime, Memory, State } from '@elizaos/core-plugin-v2';
-import { ModelType, composePrompt, elizaLogger } from '@elizaos/core-plugin-v2';
+import type { HandlerCallback, IAgentRuntime, Memory, State } from '@elizaos/core';
+import { ModelType, composePrompt, elizaLogger } from '@elizaos/core';
 import { type ExtendedChain, type Route, createConfig, executeRoute, getRoutes } from '@lifi/sdk';
 
 import {

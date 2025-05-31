@@ -8,7 +8,7 @@ import {
   elizaLogger,
   TEEMode,
   ServiceType,
-} from '@elizaos/core-plugin-v2';
+} from '@elizaos/core';
 import type {
   Account,
   Address,

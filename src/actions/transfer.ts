@@ -6,7 +6,7 @@ import {
   ModelType,
   type State,
   composePrompt,
-} from "@elizaos/core-plugin-v2";
+} from "@elizaos/core";
 import { type ByteArray, type Hex, formatEther, parseEther } from "viem";
 
 import { type WalletProvider, initWalletProvider } from "../providers/wallet";

@@ -3,7 +3,7 @@ import type {
   Memory,
   State,
   HandlerCallback,
-} from "@elizaos/core-plugin-v2";
+} from "@elizaos/core";
 import { WalletProvider } from "../providers/wallet";
 import { voteTemplate } from "../templates";
 import type { VoteParams, SupportedChain, Transaction } from "../types";
