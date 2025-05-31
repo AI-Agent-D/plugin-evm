@@ -11,7 +11,6 @@ import { swapAction } from './actions/swap';
 import { transferAction } from './actions/transfer';
 import { evmWalletProvider } from './providers/wallet';
 import { EVMService } from './service';
-import { EVM_SERVICE_NAME } from './constants';
 
 export const evmPlugin: Plugin = {
   name: 'evm',
@@ -19,7 +18,7 @@ export const evmPlugin: Plugin = {
   providers: [evmWalletProvider],
   evaluators: [],
   services: [EVMService],
-  actions: [transferAction as any, bridgeAction as any, swapAction as any],
+  actions: [transferAction, bridgeAction, swapAction],
 };
 
 export default evmPlugin;

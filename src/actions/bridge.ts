@@ -1,21 +1,11 @@
-import type {
-  HandlerCallback,
-  IAgentRuntime,
-  Memory,
-  State,
-} from "@elizaos/core-plugin-v2";
-import { composePrompt, ModelType } from "@elizaos/core-plugin-v2";
-import {
-  type ExtendedChain,
-  createConfig,
-  executeRoute,
-  getRoutes,
-} from "@lifi/sdk";
+import type { HandlerCallback, IAgentRuntime, Memory, State } from '@elizaos/core-plugin-v2';
+import { composePrompt, ModelType } from '@elizaos/core-plugin-v2';
+import { type ExtendedChain, createConfig, executeRoute, getRoutes } from '@lifi/sdk';
 
-import { parseEther } from "viem";
-import { type WalletProvider, initWalletProvider } from "../providers/wallet";
-import { bridgeTemplate } from "../templates";
-import type { BridgeParams, Transaction } from "../types";
+import { parseEther } from 'viem';
+import { type WalletProvider, initWalletProvider } from '../providers/wallet';
+import { bridgeTemplate } from '../templates';
+import type { BridgeParams, Transaction } from '../types';
 
 export { bridgeTemplate };
 
@@ -24,16 +14,16 @@ export class BridgeAction {
 
   constructor(private walletProvider: WalletProvider) {
     this.config = createConfig({
-      integrator: "eliza",
+      integrator: 'eliza',
       chains: Object.values(this.walletProvider.chains).map((config) => ({
         id: config.id,
         name: config.name,
         key: config.name.toLowerCase(),
-        chainType: "EVM",
+        chainType: 'EVM',
         nativeToken: {
           ...config.nativeCurrency,
           chainId: config.id,
-          address: "0x0000000000000000000000000000000000000000",
+          address: '0x0000000000000000000000000000000000000000',
           coinKey: config.nativeCurrency.symbol,
         },
         metamask: {
@@ -41,9 +31,9 @@ export class BridgeAction {
           chainName: config.name,
           nativeCurrency: config.nativeCurrency,
           rpcUrls: [config.rpcUrls.default.http[0]],
-          blockExplorerUrls: [config.blockExplorers?.default.url],
+          blockExplorerUrls: [config?.blockExplorers?.default?.url],
         },
-        diamondAddress: "0x0000000000000000000000000000000000000000",
+        diamondAddress: '0x0000000000000000000000000000000000000000',
         coin: config.nativeCurrency.symbol,
         mainnet: true,
       })) as ExtendedChain[],
@@ -64,13 +54,13 @@ export class BridgeAction {
       toAddress: params.toAddress || fromAddress,
     });
 
-    if (!routes.routes.length) throw new Error("No routes found");
+    if (!routes.routes.length) throw new Error('No routes found');
 
     const execution = await executeRoute(routes.routes[0], this.config as any);
     const process = execution.steps[0]?.execution?.process[0];
 
-    if (!process?.status || process.status === "FAILED") {
-      throw new Error("Transaction failed");
+    if (!process?.status || process.status === 'FAILED') {
+      throw new Error('Transaction failed');
     }
 
     return {
@@ -89,7 +79,7 @@ const buildBridgeDetails = async (
   wp: WalletProvider
 ): Promise<BridgeParams> => {
   const chains = wp.getSupportedChains();
-  state.supportedChains = chains.map((item) => `"${item}"`).join("|");
+  state.supportedChains = chains.map((item) => `"${item}"`).join('|');
 
   // Add balances to state for better context in template
   const balances = await wp.getWalletBalances();
@@ -98,7 +88,7 @@ const buildBridgeDetails = async (
       const chainConfig = wp.getChainConfigs(chain as any);
       return `${chain}: ${balance} ${chainConfig.nativeCurrency.symbol}`;
     })
-    .join(", ");
+    .join(', ');
 
   // Compose bridge context
   const bridgeContext = composePrompt({
@@ -116,13 +106,13 @@ const buildBridgeDetails = async (
 
   if (!wp.chains[fromChain]) {
     throw new Error(
-      `Source chain ${fromChain} not configured. Available chains: ${chains.join(", ")}`
+      `Source chain ${fromChain} not configured. Available chains: ${chains.join(', ')}`
     );
   }
 
   if (!wp.chains[toChain]) {
     throw new Error(
-      `Destination chain ${toChain} not configured. Available chains: ${chains.join(", ")}`
+      `Destination chain ${toChain} not configured. Available chains: ${chains.join(', ')}`
     );
   }
 
@@ -139,25 +129,25 @@ const buildBridgeDetails = async (
 };
 
 export const bridgeAction = {
-  name: "EVM_BRIDGE_TOKENS",
-  description: "Bridge tokens between different chains",
+  name: 'EVM_BRIDGE_TOKENS',
+  description: 'Bridge tokens between different chains',
   handler: async (
     runtime: IAgentRuntime,
     _message: Memory,
-    state: State,
-    _options: Record<string, unknown>,
+    state?: State,
+    _options?: Record<string, unknown>,
     callback?: HandlerCallback
   ) => {
     const walletProvider = await initWalletProvider(runtime);
     const action = new BridgeAction(walletProvider);
 
+    if (!state) {
+      state = await runtime.composeState(_message);
+    }
+
     try {
       // Get bridge parameters
-      const bridgeOptions = await buildBridgeDetails(
-        state,
-        runtime,
-        walletProvider
-      );
+      const bridgeOptions = await buildBridgeDetails(state, runtime, walletProvider);
 
       const bridgeResp = await action.bridge(bridgeOptions);
       if (callback) {
@@ -173,13 +163,15 @@ export const bridgeAction = {
         });
       }
       return true;
-    } catch (error: unknown) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error("Error in bridge handler:", errMsg);
+    } catch (error) {
+      console.error(
+        'Error in bridge handler:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
       if (callback) {
         callback({
-          text: `Error: ${errMsg}`,
-          content: { error: errMsg },
+          text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          content: { error: error instanceof Error ? error.message : 'Unknown error' },
         });
       }
       return false;
@@ -187,19 +179,20 @@ export const bridgeAction = {
   },
   template: bridgeTemplate,
   validate: async (runtime: IAgentRuntime) => {
-    const privateKey = runtime.getSetting("EVM_PRIVATE_KEY");
-    return typeof privateKey === "string" && privateKey.startsWith("0x");
+    const privateKey = runtime.getSetting('EVM_PRIVATE_KEY');
+    return typeof privateKey === 'string' && privateKey.startsWith('0x');
   },
   examples: [
     [
       {
-        user: "user",
+        name: 'user',
+        user: 'user',
         content: {
-          text: "Bridge 1 ETH from Ethereum to Base",
-          action: "CROSS_CHAIN_TRANSFER",
+          text: 'Bridge 1 ETH from Ethereum to Base',
+          action: 'CROSS_CHAIN_TRANSFER',
         },
       },
     ],
   ],
-  similes: ["CROSS_CHAIN_TRANSFER", "CHAIN_BRIDGE", "MOVE_CROSS_CHAIN"],
+  similes: ['CROSS_CHAIN_TRANSFER', 'CHAIN_BRIDGE', 'MOVE_CROSS_CHAIN'],
 };

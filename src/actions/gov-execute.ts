@@ -31,6 +31,10 @@ export class ExecuteAction {
   async execute(params: ExecuteProposalParams): Promise<Transaction> {
     const walletClient = this.walletProvider.getWalletClient(params.chain);
 
+    if (!walletClient.account) {
+      throw new Error('Wallet account is not available');
+    }
+
     const descriptionHash = keccak256(stringToHex(params.description));
 
     const txData = encodeFunctionData({
@@ -51,18 +55,7 @@ export class ExecuteAction {
         value: BigInt(0),
         data: txData as Hex,
         chain: chainConfig,
-        kzg: {
-          blobToKzgCommitment: (_blob: ByteArray): ByteArray => {
-            throw new Error("Function not implemented.");
-          },
-          computeBlobKzgProof: (
-            _blob: ByteArray,
-            _commitment: ByteArray
-          ): ByteArray => {
-            throw new Error("Function not implemented.");
-          },
-        },
-      } as any);
+      });
 
       const receipt = await publicClient.waitForTransactionReceipt({
         hash,
@@ -78,9 +71,8 @@ export class ExecuteAction {
         logs: receipt.logs,
       };
     } catch (error: unknown) {
-      throw new Error(
-        `Vote failed: ${error instanceof Error ? error.message : String(error)}`
-      );
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Vote failed: ${errorMessage}`);
     }
   }
 }
@@ -124,14 +116,11 @@ export const executeAction = {
       const walletProvider = new WalletProvider(privateKey, runtime);
       const action = new ExecuteAction(walletProvider);
       return await action.execute(executeParams);
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error("Error in execute handler:", errMsg);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error in execute handler:', errorMessage);
       if (callback) {
-        callback({
-          text: `Error: ${errMsg}`,
-          content: { error: errMsg },
-        });
+        callback({ text: `Error: ${errorMessage}` });
       }
       return false;
     }
