@@ -204,15 +204,16 @@ const genChainsFromRuntime = (runtime: IAgentRuntime): Record<string, Chain> => 
   // Get chains from settings - ONLY use configured chains
   const configuredChains = (runtime?.character?.settings?.chains?.evm as SupportedChain[]) || [];
 
-  // If no chains are configured, return empty object
+  // If no chains are configured, default to mainnet and base
+  const chainsToUse = configuredChains.length > 0 ? configuredChains : ['mainnet', 'base'];
+  
   if (configuredChains.length === 0) {
-    elizaLogger.warn('No EVM chains configured in settings');
-    return {};
+    elizaLogger.warn('No EVM chains configured in settings, defaulting to mainnet and base');
   }
 
   const chains: Record<string, Chain> = {};
 
-  for (const chainName of configuredChains) {
+  for (const chainName of chainsToUse) {
     try {
       // Try to get RPC URL from settings using different formats
       let rpcUrl = runtime.getSetting(`ETHEREUM_PROVIDER_${chainName.toUpperCase()}`);
