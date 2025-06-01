@@ -206,8 +206,8 @@ const genChainsFromRuntime = (runtime: IAgentRuntime): Record<string, Chain> => 
 
   // If no chains are configured, default to mainnet and base
   const chainsToUse = configuredChains.length > 0 ? configuredChains : ['mainnet', 'base'];
-  
-  if (configuredChains.length === 0) {
+
+  if (!configuredChains.length) {
     elizaLogger.warn('No EVM chains configured in settings, defaulting to mainnet and base');
   }
 
