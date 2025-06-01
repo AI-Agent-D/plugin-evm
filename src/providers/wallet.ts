@@ -36,7 +36,7 @@ import type { SupportedChain } from '../types';
 
 export class WalletProvider {
   private cacheKey = 'evm/wallet';
-  chains: Record<string, Chain> = { ...viemChains };
+  chains: Record<string, Chain> = {};
   account!: PrivateKeyAccount;
   runtime: IAgentRuntime;
   constructor(
@@ -45,7 +45,9 @@ export class WalletProvider {
     chains?: Record<string, Chain>
   ) {
     this.setAccount(accountOrPrivateKey);
-    this.addChains(chains);
+    if (chains) {
+      this.chains = chains;
+    }
     this.runtime = runtime;
   }
 
@@ -159,9 +161,8 @@ export class WalletProvider {
     if (!chains) {
       return;
     }
-    for (const chain of Object.keys(chains)) {
-      this.chains[chain] = chains[chain];
-    }
+    // Only add the chains that are explicitly provided
+    this.chains = { ...this.chains, ...chains };
   };
 
   private createHttpTransport = (chainName: SupportedChain) => {
@@ -200,17 +201,19 @@ export class WalletProvider {
 }
 
 const genChainsFromRuntime = (runtime: IAgentRuntime): Record<string, Chain> => {
-  // Get chains from settings or use default supported chains
+  // Get chains from settings - ONLY use configured chains
   const configuredChains = (runtime?.character?.settings?.chains?.evm as SupportedChain[]) || [];
 
-  // Default chains to include if not specified in settings
-  const defaultChains = ['mainnet', 'polygon', 'arbitrum', 'base', 'optimism', 'linea'];
+  // If no chains are configured, default to mainnet and base
+  const chainsToUse = configuredChains.length > 0 ? configuredChains : ['mainnet', 'base'];
 
-  // Combine configured chains with defaults, removing duplicates
-  const chainNames = [...new Set([...configuredChains, ...defaultChains])];
+  if (!configuredChains.length) {
+    elizaLogger.warn('No EVM chains configured in settings, defaulting to mainnet and base');
+  }
+
   const chains: Record<string, Chain> = {};
 
-  for (const chainName of chainNames) {
+  for (const chainName of chainsToUse) {
     try {
       // Try to get RPC URL from settings using different formats
       let rpcUrl = runtime.getSetting(`ETHEREUM_PROVIDER_${chainName.toUpperCase()}`);
@@ -227,6 +230,7 @@ const genChainsFromRuntime = (runtime: IAgentRuntime): Record<string, Chain> => 
 
       const chain = WalletProvider.genChainFromName(chainName, rpcUrl);
       chains[chainName] = chain;
+      elizaLogger.log(`Configured chain: ${chainName}`);
     } catch (error) {
       elizaLogger.error(`Error configuring chain ${chainName}:`, error);
     }
