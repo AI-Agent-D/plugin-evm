@@ -74,7 +74,6 @@ export interface SwapParams {
   fromToken: Address;
   toToken: Address;
   amount: string;
-  slippage?: number;
 }
 
 export interface BebopRoute {

@@ -1,19 +1,32 @@
 import { defineChain } from 'viem';
+import { sepolia, baseSepolia, optimismSepolia, arbitrumSepolia } from 'viem/chains';
 
-export const customChain = defineChain({
-  id: 12345, // Your custom chain ID
-  name: 'My Custom Chain',
+// Export the actual testnets we'll use
+export { sepolia, baseSepolia, optimismSepolia, arbitrumSepolia };
+
+// Custom testnet configurations if needed
+export const customTestChain = defineChain({
+  id: 421614, // Arbitrum Sepolia
+  name: 'Arbitrum Sepolia',
   nativeCurrency: {
-    name: 'MyToken',
-    symbol: 'MYT',
+    name: 'Sepolia Ether',
+    symbol: 'ETH',
     decimals: 18,
   },
   rpcUrls: {
-    default: { http: ['https://rpc.mycustomchain.com'] },
-    public: { http: ['https://rpc.mycustomchain.com'] },
+    default: { http: ['https://sepolia-rollup.arbitrum.io/rpc'] },
+    public: { http: ['https://sepolia-rollup.arbitrum.io/rpc'] },
   },
   blockExplorers: {
-    default: { name: 'MyChain Explorer', url: 'https://explorer.mycustomchain.com' },
+    default: { name: 'Arbiscan Sepolia', url: 'https://sepolia.arbiscan.io' },
   },
-  testnet: false, // Set to `true` if it's a testnet
+  testnet: true,
+});
+
+// Helper to get test chains configuration
+export const getTestChains = () => ({
+  sepolia: sepolia,
+  baseSepolia: baseSepolia,
+  optimismSepolia: optimismSepolia,
+  arbitrumSepolia: arbitrumSepolia,
 });
