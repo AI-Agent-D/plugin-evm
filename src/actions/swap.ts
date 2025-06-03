@@ -1,6 +1,13 @@
 import type { HandlerCallback, IAgentRuntime, Memory, State } from '@elizaos/core';
-import { ModelType, composePrompt, elizaLogger } from '@elizaos/core';
-import { type ExtendedChain, type Route, createConfig, executeRoute, getRoutes } from '@lifi/sdk';
+import { ModelType, composePromptFromState, elizaLogger, parseKeyValueXml } from '@elizaos/core';
+import {
+  type ExtendedChain,
+  type Route,
+  createConfig,
+  getRoutes,
+  getStepTransaction,
+  getToken,
+} from '@lifi/sdk';
 
 import {
   type Address,
@@ -79,41 +86,141 @@ export class SwapAction {
     };
   }
 
+  /**
+   * Resolves a token symbol or address to a valid contract address using LiFi SDK
+   */
+  private async resolveTokenAddress(
+    tokenSymbolOrAddress: string,
+    chainId: number
+  ): Promise<string> {
+    // If it's already a valid address (starts with 0x and is 42 chars), return as is
+    if (tokenSymbolOrAddress.startsWith('0x') && tokenSymbolOrAddress.length === 42) {
+      return tokenSymbolOrAddress;
+    }
+
+    // If it's the zero address (native token), return as is
+    if (tokenSymbolOrAddress === '0x0000000000000000000000000000000000000000') {
+      return tokenSymbolOrAddress;
+    }
+
+    try {
+      // Use LiFi SDK to resolve token symbol to address
+      const token = await getToken(chainId, tokenSymbolOrAddress);
+      return token.address;
+    } catch (error) {
+      elizaLogger.error(
+        `Failed to resolve token ${tokenSymbolOrAddress} on chain ${chainId}:`,
+        error
+      );
+      // If LiFi fails, return original value and let downstream handle the error
+      return tokenSymbolOrAddress;
+    }
+  }
+
   async swap(params: SwapParams): Promise<Transaction> {
     const walletClient = this.walletProvider.getWalletClient(params.chain);
     const [fromAddress] = await walletClient.getAddresses();
 
-    // Getting quotes from different aggregators and sorting them by minAmount (amount after slippage)
-    const sortedQuotes: SwapQuote[] = await this.getSortedQuotes(fromAddress, params);
+    // Resolve token symbols to addresses first
+    const chainConfig = this.walletProvider.getChainConfigs(params.chain);
+    const chainId = chainConfig.id;
 
-    // Trying to execute the best quote by amount, fallback to the next one if it fails
-    for (const quote of sortedQuotes) {
-      let res;
-      switch (quote.aggregator) {
-        case 'lifi':
-          res = await this.executeLifiQuote(quote);
-          break;
-        case 'bebop':
-          res = await this.executeBebopQuote(quote, params);
-          break;
-        default:
-          throw new Error('No aggregator found');
+    const resolvedFromToken = await this.resolveTokenAddress(params.fromToken, chainId);
+    const resolvedToToken = await this.resolveTokenAddress(params.toToken, chainId);
+
+    console.log(
+      `###### RESOLVED TOKENS: ${params.fromToken} -> ${resolvedFromToken}, ${params.toToken} -> ${resolvedToToken}`
+    );
+
+    // Update params with resolved addresses
+    const resolvedParams = {
+      ...params,
+      fromToken: resolvedFromToken as Address,
+      toToken: resolvedToToken as Address,
+    };
+
+    // Try swap with progressively higher slippage if needed
+    const slippageLevels = [0.01, 0.015, 0.02]; // 1%, 1.5%, 2%
+    let lastError: Error | undefined;
+
+    for (const slippage of slippageLevels) {
+      try {
+        // Getting quotes from different aggregators with current slippage
+        const sortedQuotes: SwapQuote[] = await this.getSortedQuotes(
+          fromAddress,
+          resolvedParams,
+          slippage
+        );
+
+        // Trying to execute the best quote by amount, fallback to the next one if it fails
+        for (const quote of sortedQuotes) {
+          let res;
+          switch (quote.aggregator) {
+            case 'lifi':
+              res = await this.executeLifiQuote(quote);
+              break;
+            case 'bebop':
+              res = await this.executeBebopQuote(quote, resolvedParams);
+              break;
+            default:
+              throw new Error('No aggregator found');
+          }
+          if (res !== undefined) return res;
+        }
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // If it's a slippage error, revert, or MEV issue and we have more slippage levels to try, continue
+        if (
+          lastError.message.includes('price movement') ||
+          lastError.message.includes('Return amount is not enough') ||
+          lastError.message.includes('reverted') ||
+          lastError.message.includes('MEV frontrunning')
+        ) {
+          console.log(`###### SWAP FAILED WITH ${slippage * 100}% SLIPPAGE: ${lastError.message}`);
+          console.log(`###### RETRYING WITH FRESH QUOTES AND HIGHER SLIPPAGE`);
+
+          // Add small delay to avoid rapid retries
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          continue;
+        }
+
+        // If it's not a recoverable error, throw immediately
+        throw lastError;
       }
-      if (res !== undefined) return res;
     }
-    throw new Error('Execution failed');
+
+    // If all slippage levels failed, throw the last error
+    throw lastError || new Error('Execution failed');
   }
 
-  private async getSortedQuotes(fromAddress: Address, params: SwapParams): Promise<SwapQuote[]> {
+  private async getSortedQuotes(
+    fromAddress: Address,
+    params: SwapParams,
+    slippage: number = 0.01
+  ): Promise<SwapQuote[]> {
     const decimalsAbi = parseAbi(['function decimals() view returns (uint8)']);
-    const decimals = await this.walletProvider.getPublicClient(params.chain).readContract({
-      address: params.fromToken,
-      abi: decimalsAbi,
-      functionName: 'decimals',
-    });
+    let fromTokenDecimals: number;
+
+    const chainConfig = this.walletProvider.getChainConfigs(params.chain);
+
+    // Check if the fromToken is the native currency
+    if (
+      params.fromToken.toUpperCase() === chainConfig.nativeCurrency.symbol.toUpperCase() ||
+      params.fromToken === '0x0000000000000000000000000000000000000000'
+    ) {
+      fromTokenDecimals = chainConfig.nativeCurrency.decimals;
+    } else {
+      fromTokenDecimals = await this.walletProvider.getPublicClient(params.chain).readContract({
+        address: params.fromToken as Address,
+        abi: decimalsAbi,
+        functionName: 'decimals',
+      });
+    }
+
     const quotesPromises: Promise<SwapQuote | undefined>[] = [
-      this.getLifiQuote(fromAddress, params, decimals),
-      this.getBebopQuote(fromAddress, params, decimals),
+      this.getLifiQuote(fromAddress, params, fromTokenDecimals, slippage),
+      this.getBebopQuote(fromAddress, params, fromTokenDecimals),
     ];
     const quotesResults = await Promise.all(quotesPromises);
     const sortedQuotes: SwapQuote[] = quotesResults.filter(
@@ -127,7 +234,8 @@ export class SwapAction {
   private async getLifiQuote(
     fromAddress: Address,
     params: SwapParams,
-    fromTokenDecimals: number
+    fromTokenDecimals: number,
+    slippage: number = 0.01
   ): Promise<SwapQuote | undefined> {
     try {
       const routes = await getRoutes({
@@ -138,7 +246,7 @@ export class SwapAction {
         fromAmount: parseUnits(params.amount, fromTokenDecimals).toString(),
         fromAddress: fromAddress,
         options: {
-          slippage: params.slippage !== undefined ? params.slippage / 100 : 0.005,
+          slippage: slippage,
           order: 'RECOMMENDED',
         },
       });
@@ -150,6 +258,18 @@ export class SwapAction {
       };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Check for specific slippage-related errors
+      if (
+        errorMessage.includes('Return amount is not enough') ||
+        errorMessage.includes('INSUFFICIENT_OUTPUT_AMOUNT') ||
+        errorMessage.includes('slippage')
+      ) {
+        elizaLogger.error(
+          `LiFi swap failed due to slippage protection. Consider increasing slippage tolerance. Error: ${errorMessage}`
+        );
+      }
+
       elizaLogger.error('Error in getLifiQuote:', errorMessage);
       return undefined;
     }
@@ -161,7 +281,8 @@ export class SwapAction {
     fromTokenDecimals: number
   ): Promise<SwapQuote | undefined> {
     try {
-      const url = `https://api.bebop.xyz/router/${(this.bebopChainsMap as any)[params.chain] ?? params.chain}/v1/quote`;
+      const chainName = (this.bebopChainsMap as any)[params.chain] ?? params.chain;
+      const url = `https://api.bebop.xyz/router/${chainName}/v1/quote`;
       const reqParams = new URLSearchParams({
         sell_tokens: params.fromToken,
         buy_tokens: params.toToken,
@@ -177,23 +298,40 @@ export class SwapAction {
         headers: { accept: 'application/json' },
       });
       if (!response.ok) {
-        throw Error(response.statusText);
+        throw Error(`Bebop API error: ${response.status} ${response.statusText}`);
       }
-      //const data: { routes: { quote: { tx: { data: string, from: string, value: string, to: string, gas: string, gasPrice: string }, approvalTarget: string, buyTokens: { [key: string]: { minimumAmount: string } } } }[] } = await response.json();
+
       const data: any = await response.json();
+
+      // Improved error handling for Bebop API response
+      if (!data.routes || !Array.isArray(data.routes) || data.routes.length === 0) {
+        throw new Error('No routes found in Bebop API response');
+      }
+
+      const firstRoute = data.routes[0];
+      if (!firstRoute?.quote?.tx) {
+        throw new Error('Invalid route structure in Bebop API response');
+      }
+
       const route: BebopRoute = {
-        data: data.routes[0].quote.tx.data,
+        data: firstRoute.quote.tx.data,
         sellAmount: parseUnits(params.amount, fromTokenDecimals).toString(),
-        approvalTarget: data.routes[0].quote.approvalTarget as `0x${string}`,
-        from: data.routes[0].quote.tx.from as `0x${string}`,
-        value: data.routes[0].quote.tx.value.toString(),
-        to: data.routes[0].quote.tx.to as `0x${string}`,
-        gas: data.routes[0].quote.tx.gas.toString(),
-        gasPrice: data.routes[0].quote.tx.gasPrice.toString(),
+        approvalTarget: firstRoute.quote.approvalTarget as `0x${string}`,
+        from: firstRoute.quote.tx.from as `0x${string}`,
+        value: firstRoute.quote.tx.value.toString(),
+        to: firstRoute.quote.tx.to as `0x${string}`,
+        gas: firstRoute.quote.tx.gas.toString(),
+        gasPrice: firstRoute.quote.tx.gasPrice.toString(),
       };
+
+      // Check if buyTokens exists and has the expected structure
+      if (!firstRoute.quote.buyTokens || !firstRoute.quote.buyTokens[params.toToken]) {
+        throw new Error('Missing buyTokens information in Bebop API response');
+      }
+
       return {
         aggregator: 'bebop',
-        minOutputAmount: data.routes[0].quote.buyTokens[params.toToken].minimumAmount.toString(),
+        minOutputAmount: firstRoute.quote.buyTokens[params.toToken].minimumAmount.toString(),
         swapData: route,
       };
     } catch (error: unknown) {
@@ -206,22 +344,129 @@ export class SwapAction {
   private async executeLifiQuote(quote: SwapQuote): Promise<Transaction | undefined> {
     try {
       const route: Route = quote.swapData as Route;
-      const execution = await executeRoute(quote.swapData as Route, this.lifiConfig as any);
-      const process = execution.steps[0]?.execution?.process[0];
 
-      if (!process?.status || process.status === 'FAILED') {
-        throw new Error('Transaction failed');
+      // Get the first step and request transaction data for it
+      const step = route.steps[0];
+      if (!step) {
+        throw new Error('No steps found in route');
       }
+
+      // Use getStepTransaction to get the actual transaction data
+      const stepWithTx = await getStepTransaction(step);
+
+      if (!stepWithTx.transactionRequest) {
+        throw new Error('No transaction request found in step after getStepTransaction');
+      }
+
+      // Get wallet client for the correct chain
+      const chainId = route.fromChainId;
+      const chainName = Object.keys(this.walletProvider.chains).find(
+        (name) => this.walletProvider.getChainConfigs(name as any).id === chainId
+      );
+
+      if (!chainName) {
+        throw new Error(`Chain with ID ${chainId} not found in wallet provider`);
+      }
+
+      const walletClient = this.walletProvider.getWalletClient(chainName as any);
+
+      if (!walletClient.account) {
+        throw new Error('Wallet account is not available');
+      }
+
+      const txRequest = stepWithTx.transactionRequest;
+
+      // Check if we need to approve tokens for LiFi contract (for ERC20 tokens, not native ETH)
+      const fromToken = route.fromToken;
+      if (fromToken.address !== '0x0000000000000000000000000000000000000000') {
+        // This is an ERC20 token, check allowance
+        const allowanceAbi = parseAbi([
+          'function allowance(address,address) view returns (uint256)',
+        ]);
+        const spenderAddress = txRequest.to as Address; // LiFi contract address
+
+        const allowance: bigint = await this.walletProvider
+          .getPublicClient(chainName as any)
+          .readContract({
+            address: fromToken.address as Address,
+            abi: allowanceAbi,
+            functionName: 'allowance',
+            args: [walletClient.account.address, spenderAddress],
+          });
+
+        const requiredAmount = BigInt(route.fromAmount);
+
+        if (allowance < requiredAmount) {
+          console.log(`###### APPROVING ${fromToken.symbol} FOR LIFI CONTRACT`);
+          const approvalData = encodeFunctionData({
+            abi: parseAbi(['function approve(address,uint256)']),
+            functionName: 'approve',
+            args: [spenderAddress, requiredAmount],
+          });
+
+          const approvalTx = await walletClient.sendTransaction({
+            account: walletClient.account,
+            to: fromToken.address as Address,
+            value: 0n,
+            data: approvalData,
+            chain: walletClient.chain,
+          });
+        }
+      }
+
+      const hash = await walletClient.sendTransaction({
+        account: walletClient.account,
+        to: txRequest.to as `0x${string}`,
+        value: BigInt(txRequest.value || '0'),
+        data: txRequest.data as `0x${string}`,
+        chain: walletClient.chain,
+        gas: BigInt(Math.floor(Number(txRequest.gasLimit || '0') * 1.2)), // Add 20% gas buffer
+        gasPrice: txRequest.gasPrice
+          ? BigInt(Math.floor(Number(txRequest.gasPrice) * 1.1))
+          : undefined, // 10% higher gas price for MEV protection
+      });
+
+      // Wait for transaction receipt to verify success
+      console.log(`###### WAITING FOR TRANSACTION RECEIPT: ${hash}`);
+      const publicClient = this.walletProvider.getPublicClient(chainName as any);
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: hash,
+        timeout: 60000, // 60 second timeout
+      });
+
+      if (receipt.status === 'reverted') {
+        throw new Error(
+          `Transaction reverted on-chain. Hash: ${hash}. This could be due to price movement, insufficient gas, or MEV frontrunning. Please try again.`
+        );
+      }
+
+      console.log(`###### TRANSACTION CONFIRMED: ${hash}, Gas Used: ${receipt.gasUsed}`);
+
       return {
-        hash: process.txHash as `0x${string}`,
-        from: route.fromAddress! as `0x${string}`,
-        to: route.steps[0].estimate.approvalAddress as `0x${string}`,
-        value: 0n,
-        data: process.data as `0x${string}`,
+        hash,
+        from: walletClient.account.address,
+        to: txRequest.to as `0x${string}`,
+        value: BigInt(txRequest.value || '0'),
+        data: txRequest.data as `0x${string}`,
         chainId: route.fromChainId,
       };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Check for specific slippage-related errors
+      if (
+        errorMessage.includes('Return amount is not enough') ||
+        errorMessage.includes('INSUFFICIENT_OUTPUT_AMOUNT') ||
+        errorMessage.includes('slippage')
+      ) {
+        elizaLogger.error(
+          `LiFi swap failed due to slippage protection. Consider increasing slippage tolerance. Error: ${errorMessage}`
+        );
+        throw new Error(
+          'Swap failed due to price movement. Try again or increase slippage tolerance.'
+        );
+      }
+
       elizaLogger.error(`Failed to execute lifi quote: ${errorMessage}`);
       return undefined;
     }
@@ -237,7 +482,7 @@ export class SwapAction {
       const allowance: bigint = await this.walletProvider
         .getPublicClient(params.chain)
         .readContract({
-          address: params.fromToken,
+          address: params.fromToken as Address,
           abi: allowanceAbi,
           functionName: 'allowance',
           args: [bebopRoute.from, bebopRoute.approvalTarget],
@@ -257,10 +502,10 @@ export class SwapAction {
         });
         await walletClient.sendTransaction({
           account: walletClient.account,
-          to: params.fromToken,
+          to: params.fromToken as Address,
           value: 0n,
           data: approvalData,
-          chain: undefined,
+          chain: walletClient.chain,
         });
       }
 
@@ -269,7 +514,7 @@ export class SwapAction {
         to: bebopRoute.to,
         value: BigInt(bebopRoute.value),
         data: bebopRoute.data as Hex,
-        chain: undefined,
+        chain: walletClient.chain,
       });
 
       return {
@@ -289,14 +534,18 @@ export class SwapAction {
 
 const buildSwapDetails = async (
   state: State,
+  _message: Memory,
   runtime: IAgentRuntime,
   wp: WalletProvider
 ): Promise<SwapParams> => {
   const chains = wp.getSupportedChains();
-  state.supportedChains = chains.map((item) => `"${item}"`).join('|');
 
   // Add balances to state for better context in template
   const balances = await wp.getWalletBalances();
+
+  state = await runtime.composeState(_message, ['RECENT_MESSAGES'], true);
+  state.supportedChains = chains.join(' | ');
+  console.log('###### STATE', state);
   state.chainBalances = Object.entries(balances)
     .map(([chain, balance]) => {
       const chainConfig = wp.getChainConfigs(chain as any);
@@ -304,19 +553,79 @@ const buildSwapDetails = async (
     })
     .join(', ');
 
-  const context = composePrompt({
+  const context = composePromptFromState({
     state,
     template: swapTemplate,
   });
 
-  const swapDetails = await runtime.useModel(ModelType.OBJECT_SMALL, {
-    context,
+  const xmlResponse = await runtime.useModel(ModelType.TEXT_LARGE, {
+    prompt: context,
   });
 
-  // Validate chain exists
-  const chain = swapDetails.chain;
-  if (!wp.chains[chain]) {
-    throw new Error(`Chain ${chain} not configured. Available chains: ${chains.join(', ')}`);
+  const parsedXml = parseKeyValueXml(xmlResponse);
+
+  if (!parsedXml) {
+    throw new Error('Failed to parse XML response from LLM for swap details.');
+  }
+
+  // Map parsed XML fields to SwapParams fields
+  let swapDetails: SwapParams = {
+    fromToken: parsedXml.inputToken,
+    toToken: parsedXml.outputToken,
+    amount: parsedXml.amount,
+    chain: parsedXml.chain,
+  };
+
+  // Normalize chain name to lowercase to handle case sensitivity issues
+  if (swapDetails.chain) {
+    const normalizedChainName = swapDetails.chain.toLowerCase();
+
+    // Validate chain exists
+    if (!wp.chains[normalizedChainName]) {
+      throw new Error(
+        `Chain ${swapDetails.chain} not configured. Available chains: ${chains.join(', ')}`
+      );
+    }
+
+    // Update swapDetails with normalized chain name
+    swapDetails.chain = normalizedChainName as any;
+  }
+
+  // Handle missing or null amount by calculating from balance
+  if (!swapDetails.amount || swapDetails.amount === 'null' || swapDetails.amount === '') {
+    // Get the original message text to check for balance-related requests
+    const messageText = (_message.content.text || '').toLowerCase();
+
+    if (messageText.includes('half') || messageText.includes('50%')) {
+      // User wants half their balance
+      const balance = balances[swapDetails.chain];
+      if (balance) {
+        const halfBalance = (parseFloat(balance) / 2).toString();
+        swapDetails.amount = halfBalance;
+      }
+    } else if (
+      messageText.includes('all') ||
+      messageText.includes('100%') ||
+      messageText.includes('everything')
+    ) {
+      // User wants all their balance (minus some for gas)
+      const balance = balances[swapDetails.chain];
+      if (balance) {
+        const mostBalance = (parseFloat(balance) * 0.9).toString(); // Leave 10% for gas
+        swapDetails.amount = mostBalance;
+      }
+    } else if (messageText.match(/(\d+)%/)) {
+      // User specified a percentage
+      const match = messageText.match(/(\d+)%/);
+      if (match) {
+        const percentage = parseInt(match[1]) / 100;
+        const balance = balances[swapDetails.chain];
+        if (balance) {
+          const percentageBalance = (parseFloat(balance) * percentage).toString();
+          swapDetails.amount = percentageBalance;
+        }
+      }
+    }
   }
 
   return swapDetails;
@@ -341,9 +650,10 @@ export const swapAction = {
         state = await runtime.composeState(_message);
       }
 
-      const swapOptions = await buildSwapDetails(state, runtime, walletProvider);
+      const swapOptions = await buildSwapDetails(state, _message, runtime, walletProvider);
 
       const swapResp = await action.swap(swapOptions);
+
       if (callback) {
         callback({
           text: `Successfully swapped ${swapOptions.amount} ${swapOptions.fromToken} for ${swapOptions.toToken} on ${swapOptions.chain}\nTransaction Hash: ${swapResp.hash}`,
