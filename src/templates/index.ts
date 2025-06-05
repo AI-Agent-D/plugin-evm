@@ -4,11 +4,12 @@ export const transferTemplate = `Given the recent messages and wallet informatio
 
 {{chainBalances}}
 
-Extract the following information about the requested token transfer:
-- Chain to execute on (must be one of the supported chains)
-- Amount to transfer (only number without coin symbol, e.g., "0.1")
-- Recipient address (must be a valid Ethereum address)
-- Token symbol or address (if not a native token transfer)
+Your goal is to extract the following information about the requested transfer:
+1. Chain to execute on (must be one of the supported chains)
+2. For native token transfers, the amount should be in wei, otherwise, it should be 0.
+3. For native token transfers, this should be the recipient address (must be a valid Ethereum address), otherwise this should be the token address on the chain.
+4. Token symbol or address (if not a native token transfer)
+5. If not a native token transfer, extract the ABI encoding for the ERC20 transfer function. The amount being transferred should be denominated in the token decimals on the chain.
 
 Respond with an XML block containing only the extracted values. Use null for any values that cannot be determined.
 
@@ -17,6 +18,7 @@ Respond with an XML block containing only the extracted values. Use null for any
     <amount>string | null</amount>
     <toAddress>string | null</toAddress>
     <token>string | null</token>
+    <data>string</data>
 </response>
 
 IMPORTANT: Your response must ONLY contain the <response></response> XML block above. Do not include any text, thinking, or reasoning before or after this XML block. Start your response immediately with <response> and end with </response>.
