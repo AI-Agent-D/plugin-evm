@@ -1,6 +1,6 @@
 {
   "name": "@elizaos/plugin-evm",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -53,62 +53,10 @@
     "pluginType": "elizaos:plugin:1.0.0",
     "pluginParameters": {
       "EVM_PRIVATE_KEY": {
-        "type": "string"
-      },
-      "EVM_PROVIDER_URL": {
-        "type": "string"
-      },
-      "ETHEREUM_PROVIDER_<CHAIN_NAME>": {
         "type": "string",
-        "description": "Custom RPC URL for a specific EVM-compatible chain, overriding the default RPC URL inferred from the viem/chains configuration.",
-        "required": false,
-        "default": "inferred from viem/chains configuration"
-      },
-      "TEE_MODE": {
-        "type": "string",
-        "description": "Sets the Trusted Execution Environment mode. When set to any value other than 'OFF', the application will attempt to use a TEE-derived wallet.",
-        "required": false,
-        "default": "OFF"
-      },
-      "WALLET_SECRET_SALT": {
-        "type": "string",
-        "description": "Secret salt used to deterministically derive an ECDSA keypair inside the Trusted Execution Environment when TEE_MODE is enabled.",
-        "required": false
-      },
-      "EVM_PROVIDER_<CHAIN_NAME>": {
-        "type": "string",
-        "description": "Alternative variable name for specifying the RPC URL of a specific EVM chain (e.g., EVM_PROVIDER_MAINNET, EVM_PROVIDER_BASE). Used when ETHEREUM_PROVIDER_<CHAIN_NAME> is not set.",
-        "required": false
-      },
-      "TEST_PRIVATE_KEY": {
-        "type": "string",
-        "description": "Private key to be used for tests; if absent a random key is generated.",
-        "required": false
-      },
-      "FUNDED_TEST_PRIVATE_KEY": {
-        "type": "string",
-        "description": "Private key of a wallet pre-funded with testnet ETH for integration and end-to-end tests.",
-        "required": false
-      },
-      "SEPOLIA_RPC_URL": {
-        "type": "string",
-        "description": "Custom RPC endpoint URL for the Sepolia Ethereum testnet.",
-        "required": false
-      },
-      "BASE_SEPOLIA_RPC_URL": {
-        "type": "string",
-        "description": "Custom RPC endpoint URL for the Base Sepolia testnet.",
-        "required": false
-      },
-      "OP_SEPOLIA_RPC_URL": {
-        "type": "string",
-        "description": "Custom RPC endpoint URL for the Optimism Sepolia testnet.",
-        "required": false
-      },
-      "DEBUG": {
-        "type": "boolean",
-        "description": "Enables verbose logging when set (e.g., DEBUG=1).",
-        "required": false
+        "description": "Hex-encoded private key (starting with 0x) used by the WalletProvider to sign governance proposal transactions.",
+        "required": true,
+        "sensitive": true
       }
     }
   },
