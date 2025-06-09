@@ -32,7 +32,7 @@ export class ExecuteAction {
     const walletClient = this.walletProvider.getWalletClient(params.chain);
 
     if (!walletClient.account) {
-      throw new Error('Wallet account is not available');
+      throw new Error("Wallet account is not available");
     }
 
     const descriptionHash = keccak256(stringToHex(params.description));
@@ -71,7 +71,8 @@ export class ExecuteAction {
         logs: receipt.logs,
       };
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       throw new Error(`Vote failed: ${errorMessage}`);
     }
   }
@@ -85,7 +86,7 @@ export const executeAction = {
     _message: Memory,
     _state: State,
     options: Record<string, unknown>,
-    callback?: HandlerCallback
+    callback?: HandlerCallback,
   ) => {
     try {
       // Validate required fields
@@ -117,8 +118,9 @@ export const executeAction = {
       const action = new ExecuteAction(walletProvider);
       return await action.execute(executeParams);
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('Error in execute handler:', errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error("Error in execute handler:", errorMessage);
       if (callback) {
         callback({ text: `Error: ${errorMessage}` });
       }

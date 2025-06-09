@@ -1,27 +1,33 @@
 export const transferTemplate = `Given the recent messages and wallet information below:
 
-{{recentMessages}}
+  {{recentMessages}}
 
-{{chainBalances}}
-
-Your goal is to extract the following information about the requested transfer:
-1. Chain to execute on (must be one of the supported chains)
-2. For native token transfers, the amount should be in wei, otherwise, it should be 0.
-3. For native token transfers, this should be the recipient address (must be a valid Ethereum address), otherwise this should be the token address on the chain.
-4. Token symbol or address (if not a native token transfer)
-5. If not a native token transfer, extract the ABI encoding for the ERC20 transfer function. The amount being transferred should be denominated in the token decimals on the chain.
-
-Respond with an XML block containing only the extracted values. Use null for any values that cannot be determined.
-
-<response>
-    <fromChain>{{supportedChains}} | null</fromChain>
-    <amount>string | null</amount>
-    <toAddress>string | null</toAddress>
-    <token>string | null</token>
-    <data>string</data>
-</response>
-
-IMPORTANT: Your response must ONLY contain the <response></response> XML block above. Do not include any text, thinking, or reasoning before or after this XML block. Start your response immediately with <response> and end with </response>.
+  {{chainBalances}}
+  
+  Your goal is to extract the following information for the requested transfer. Use the official token metadata for well-known tokens (like USDC) on the specified chain. Assume standard decimals unless you confirm otherwise:
+  
+  fromChain: Chain to execute on (must be one of the supported chains). This will be supplied; do not infer.
+  
+  amount: For native token transfers, use the amount in wei. For ERC-20 transfers, set this to 0.
+  
+  token: Use the symbol for native tokens, otherwise use the ERC-20 token symbol on the given chain.
+  
+  toAddress: If it's a native token transfer, this is the recipient. Otherwise, use the token contract address.
+  
+  data: For ERC-20 transfers, ABI encode the transfer(address,uint256) function. The amount should be in the smallest unit (e.g., 1 USDC = 1000000 as USDC is 6 decimal places).
+  
+  Respond with an XML block containing only the extracted values. All fields must be filled.
+  
+  <response>
+      <fromChain>{{supportedChains}} | null</fromChain>
+      <amount>string | null</amount>
+      <toAddress>string | null</toAddress>
+      <token>string | null</token>
+      <data>string</data>
+      <reason>string</reason>
+  </response>
+  
+  IMPORTANT: Your response must ONLY contain the <response></response> XML block above. Do not include any text, thinking, or reasoning before or after this XML block. Start your response immediately with <response> and end with </response>.
 `;
 
 export const bridgeTemplate = `Given the recent messages and wallet information below:

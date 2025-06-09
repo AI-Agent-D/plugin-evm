@@ -26,7 +26,7 @@ export class VoteAction {
     const walletClient = this.walletProvider.getWalletClient(params.chain);
 
     if (!walletClient.account) {
-      throw new Error('Wallet account is not available');
+      throw new Error("Wallet account is not available");
     }
 
     const proposalId = BigInt(params.proposalId.toString());
@@ -66,7 +66,8 @@ export class VoteAction {
         logs: receipt.logs,
       };
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       throw new Error(`Vote failed: ${errorMessage}`);
     }
   }
@@ -80,7 +81,7 @@ export const voteAction = {
     _message: Memory,
     _state: State,
     options: Record<string, unknown>,
-    callback?: HandlerCallback
+    callback?: HandlerCallback,
   ) => {
     try {
       // Validate required fields
@@ -106,8 +107,9 @@ export const voteAction = {
       const action = new VoteAction(walletProvider);
       return await action.vote(voteParams);
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('Error in vote handler:', errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error("Error in vote handler:", errorMessage);
       if (callback) {
         callback({ text: `Error: ${errorMessage}` });
       }
