@@ -7,8 +7,18 @@ import {
   type State,
   parseKeyValueXml,
   composePromptFromState,
+  elizaLogger,
 } from '@elizaos/core';
-import { type Hex, formatEther, parseEther } from 'viem';
+import {
+  type Hex,
+  formatEther,
+  parseEther,
+  parseAbi,
+  encodeFunctionData,
+  parseUnits,
+  type Address,
+} from 'viem';
+import { getToken } from '@lifi/sdk';
 
 import { type WalletProvider, initWalletProvider } from '../providers/wallet';
 import { transferTemplate } from '../templates';
@@ -19,35 +29,123 @@ export class TransferAction {
   constructor(private walletProvider: WalletProvider) {}
 
   async transfer(params: TransferParams): Promise<Transaction> {
-    if (!params.data) {
-      params.data = '0x';
-    }
-
     const walletClient = this.walletProvider.getWalletClient(params.fromChain);
 
     if (!walletClient.account) {
       throw new Error('Wallet account is not available');
     }
 
+    const chainConfig = this.walletProvider.getChainConfigs(params.fromChain);
+
     try {
-      const hash = await walletClient.sendTransaction({
+      let hash: Hex;
+      let to: Address;
+      let value: bigint;
+      let data: Hex;
+
+      // Check if this is a token transfer or native transfer
+      if (
+        params.token &&
+        params.token !== 'null' &&
+        params.token.toUpperCase() !== chainConfig.nativeCurrency.symbol.toUpperCase()
+      ) {
+        // This is an ERC20 token transfer
+        console.log(
+          `Processing ${params.token} token transfer of ${params.amount} to ${params.toAddress}`
+        );
+
+        // First, resolve the token address
+        const tokenAddress = await this.resolveTokenAddress(params.token, chainConfig.id);
+
+        // Check if token was resolved properly
+        if (tokenAddress === params.token && !tokenAddress.startsWith('0x')) {
+          throw new Error(
+            `Token ${params.token} not found on ${params.fromChain}. Please check the token symbol.`
+          );
+        }
+
+        // Get token decimals
+        const decimalsAbi = parseAbi(['function decimals() view returns (uint8)']);
+        const decimals = await this.walletProvider.getPublicClient(params.fromChain).readContract({
+          address: tokenAddress as Address,
+          abi: decimalsAbi,
+          functionName: 'decimals',
+        });
+
+        // Parse amount with correct decimals
+        const amountInTokenUnits = parseUnits(params.amount, decimals);
+
+        // Encode the ERC20 transfer function
+        const transferData = encodeFunctionData({
+          abi: parseAbi(['function transfer(address to, uint256 amount)']),
+          functionName: 'transfer',
+          args: [params.toAddress, amountInTokenUnits],
+        });
+
+        // For token transfers, we send to the token contract with 0 ETH value
+        to = tokenAddress as Address;
+        value = 0n;
+        data = transferData;
+      } else {
+        // This is a native ETH transfer
+        console.log(
+          `Processing native ${chainConfig.nativeCurrency.symbol} transfer of ${params.amount} to ${params.toAddress}`
+        );
+
+        to = params.toAddress;
+        value = parseEther(params.amount);
+        data = params.data || ('0x' as Hex);
+      }
+
+      const transactionParams = {
         account: walletClient.account,
-        to: params.toAddress,
-        value: parseEther(params.amount),
-        data: params.data as Hex,
+        to,
+        value,
+        data,
         chain: walletClient.chain,
-      });
+      };
+
+      hash = await walletClient.sendTransaction(transactionParams);
+      console.log(`Transaction sent successfully. Hash: ${hash}`);
 
       return {
         hash,
         from: walletClient.account.address,
-        to: params.toAddress,
-        value: parseEther(params.amount),
-        data: params.data as Hex,
+        to: params.toAddress, // Always return the recipient address, not the contract
+        value: value,
+        data: data,
       };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       throw new Error(`Transfer failed: ${errorMessage}`);
+    }
+  }
+
+  private async resolveTokenAddress(
+    tokenSymbolOrAddress: string,
+    chainId: number
+  ): Promise<string> {
+    // If it's already a valid address (starts with 0x and is 42 chars), return as is
+    if (tokenSymbolOrAddress.startsWith('0x') && tokenSymbolOrAddress.length === 42) {
+      return tokenSymbolOrAddress;
+    }
+
+    // If it's the zero address (native token), return as is
+    if (tokenSymbolOrAddress === '0x0000000000000000000000000000000000000000') {
+      return tokenSymbolOrAddress;
+    }
+
+    try {
+      // Use LiFi SDK to resolve token symbol to address
+      const token = await getToken(chainId, tokenSymbolOrAddress);
+      return token.address;
+    } catch (error) {
+      elizaLogger.error(
+        `Failed to resolve token ${tokenSymbolOrAddress} on chain ${chainId}:`,
+        error
+      );
+      // If LiFi fails, return original value and let downstream handle the error
+      return tokenSymbolOrAddress;
     }
   }
 }
@@ -112,7 +210,8 @@ const buildTransferDetails = async (
 
 export const transferAction: Action = {
   name: 'EVM_TRANSFER_TOKENS',
-  description: 'Transfer tokens between addresses on the same chain',
+  description:
+    'Transfer native tokens (ETH, BNB, etc.) or ERC20 tokens (USDC, USDT, etc.) between addresses on the same chain',
   handler: async (
     runtime: IAgentRuntime,
     message: Memory,
@@ -132,13 +231,24 @@ export const transferAction: Action = {
 
     try {
       const transferResp = await action.transfer(paramOptions);
+
+      // Determine token symbol for display
+      const chainConfig = walletProvider.getChainConfigs(paramOptions.fromChain);
+      const tokenSymbol =
+        paramOptions.token &&
+        paramOptions.token !== 'null' &&
+        paramOptions.token.toUpperCase() !== chainConfig.nativeCurrency.symbol.toUpperCase()
+          ? paramOptions.token.toUpperCase()
+          : chainConfig.nativeCurrency.symbol;
+
       if (callback) {
         callback({
-          text: `Successfully transferred ${paramOptions.amount} tokens to ${paramOptions.toAddress}\nTransaction Hash: ${transferResp.hash}`,
+          text: `Successfully transferred ${paramOptions.amount} ${tokenSymbol} to ${paramOptions.toAddress}\nTransaction Hash: ${transferResp.hash}`,
           content: {
             success: true,
             hash: transferResp.hash,
-            amount: formatEther(transferResp.value),
+            amount: paramOptions.amount,
+            token: tokenSymbol,
             recipient: transferResp.to,
             chain: paramOptions.fromChain,
           },
@@ -167,14 +277,14 @@ export const transferAction: Action = {
         name: 'assistant',
         content: {
           text: "I'll help you transfer 1 ETH to 0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-          action: 'SEND_TOKENS',
+          action: 'EVM_TRANSFER_TOKENS',
         },
       },
       {
         name: 'user',
         content: {
           text: 'Transfer 1 ETH to 0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-          action: 'SEND_TOKENS',
+          action: 'EVM_TRANSFER_TOKENS',
         },
       },
     ],
