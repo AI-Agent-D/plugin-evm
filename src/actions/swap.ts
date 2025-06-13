@@ -128,10 +128,6 @@ export class SwapAction {
     const resolvedFromToken = await this.resolveTokenAddress(params.fromToken, chainId);
     const resolvedToToken = await this.resolveTokenAddress(params.toToken, chainId);
 
-    console.log(
-      `###### RESOLVED TOKENS: ${params.fromToken} -> ${resolvedFromToken}, ${params.toToken} -> ${resolvedToToken}`
-    );
-
     // Update params with resolved addresses
     const resolvedParams = {
       ...params,
@@ -142,9 +138,12 @@ export class SwapAction {
     // Try swap with progressively higher slippage if needed
     const slippageLevels = [0.01, 0.015, 0.02]; // 1%, 1.5%, 2%
     let lastError: Error | undefined;
+    let attemptCount = 0;
 
     for (const slippage of slippageLevels) {
       try {
+        elizaLogger.info(`Attempting swap with ${(slippage * 100).toFixed(1)}% slippage...`);
+
         // Getting quotes from different aggregators with current slippage
         const sortedQuotes: SwapQuote[] = await this.getSortedQuotes(
           fromAddress,
@@ -154,6 +153,9 @@ export class SwapAction {
 
         // Trying to execute the best quote by amount, fallback to the next one if it fails
         for (const quote of sortedQuotes) {
+          attemptCount++;
+          elizaLogger.info(`Trying ${quote.aggregator} (attempt ${attemptCount})...`);
+
           let res;
           switch (quote.aggregator) {
             case 'lifi':
@@ -163,23 +165,30 @@ export class SwapAction {
               res = await this.executeBebopQuote(quote, resolvedParams);
               break;
             default:
-              throw new Error('No aggregator found');
+              throw new Error('Unknown aggregator');
           }
-          if (res !== undefined) return res;
+
+          if (res !== undefined) {
+            elizaLogger.info(`✅ Swap succeeded via ${quote.aggregator}!`);
+            return res;
+          }
+
+          elizaLogger.warn(`${quote.aggregator} attempt failed, trying next option...`);
         }
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+        elizaLogger.warn(
+          `Swap attempt with ${(slippage * 100).toFixed(1)}% slippage failed: ${lastError.message}`
+        );
 
         // If it's a slippage error, revert, or MEV issue and we have more slippage levels to try, continue
         if (
           lastError.message.includes('price movement') ||
           lastError.message.includes('Return amount is not enough') ||
           lastError.message.includes('reverted') ||
-          lastError.message.includes('MEV frontrunning')
+          lastError.message.includes('MEV frontrunning') ||
+          lastError.message.includes('TRANSFER_FROM_FAILED')
         ) {
-          console.log(`###### SWAP FAILED WITH ${slippage * 100}% SLIPPAGE: ${lastError.message}`);
-          console.log(`###### RETRYING WITH FRESH QUOTES AND HIGHER SLIPPAGE`);
-
           // Add small delay to avoid rapid retries
           await new Promise((resolve) => setTimeout(resolve, 2000));
           continue;
@@ -190,8 +199,10 @@ export class SwapAction {
       }
     }
 
-    // If all slippage levels failed, throw the last error
-    throw lastError || new Error('Execution failed');
+    // If all slippage levels failed, throw the last error with additional context
+    const errorMsg = `All swap attempts failed after ${attemptCount} tries. ${lastError?.message || 'Unknown error'}`;
+    elizaLogger.error(errorMsg);
+    throw new Error(errorMsg);
   }
 
   private async getSortedQuotes(
@@ -283,9 +294,15 @@ export class SwapAction {
     try {
       const chainName = (this.bebopChainsMap as any)[params.chain] ?? params.chain;
       const url = `https://api.bebop.xyz/router/${chainName}/v1/quote`;
+
+      // Resolve token addresses before making the request
+      const chainConfig = this.walletProvider.getChainConfigs(params.chain);
+      const resolvedFromToken = await this.resolveTokenAddress(params.fromToken, chainConfig.id);
+      const resolvedToToken = await this.resolveTokenAddress(params.toToken, chainConfig.id);
+
       const reqParams = new URLSearchParams({
-        sell_tokens: params.fromToken,
-        buy_tokens: params.toToken,
+        sell_tokens: resolvedFromToken,
+        buy_tokens: resolvedToToken,
         sell_amounts: parseUnits(params.amount, fromTokenDecimals).toString(),
         taker_address: fromAddress,
         approval_type: 'Standard',
@@ -318,20 +335,38 @@ export class SwapAction {
         sellAmount: parseUnits(params.amount, fromTokenDecimals).toString(),
         approvalTarget: firstRoute.quote.approvalTarget as `0x${string}`,
         from: firstRoute.quote.tx.from as `0x${string}`,
-        value: firstRoute.quote.tx.value.toString(),
+        value: firstRoute.quote.tx.value?.toString() || '0',
         to: firstRoute.quote.tx.to as `0x${string}`,
-        gas: firstRoute.quote.tx.gas.toString(),
-        gasPrice: firstRoute.quote.tx.gasPrice.toString(),
+        gas: firstRoute.quote.tx.gas?.toString() || '0',
+        gasPrice: firstRoute.quote.tx.gasPrice?.toString() || '0',
       };
 
       // Check if buyTokens exists and has the expected structure
-      if (!firstRoute.quote.buyTokens || !firstRoute.quote.buyTokens[params.toToken]) {
+      if (!firstRoute.quote.buyTokens) {
         throw new Error('Missing buyTokens information in Bebop API response');
+      }
+
+      // Try to find the buy token info using both the original token and resolved address
+      let buyTokenInfo =
+        firstRoute.quote.buyTokens[resolvedToToken] ||
+        firstRoute.quote.buyTokens[params.toToken] ||
+        firstRoute.quote.buyTokens[resolvedToToken.toLowerCase()];
+
+      if (!buyTokenInfo) {
+        // If not found, try to get the first (and likely only) buy token
+        const buyTokenKeys = Object.keys(firstRoute.quote.buyTokens);
+        if (buyTokenKeys.length > 0) {
+          buyTokenInfo = firstRoute.quote.buyTokens[buyTokenKeys[0]];
+        }
+      }
+
+      if (!buyTokenInfo || !buyTokenInfo.minimumAmount) {
+        throw new Error('Cannot determine minimum output amount from Bebop response');
       }
 
       return {
         aggregator: 'bebop',
-        minOutputAmount: firstRoute.quote.buyTokens[params.toToken].minimumAmount.toString(),
+        minOutputAmount: buyTokenInfo.minimumAmount.toString(),
         swapData: route,
       };
     } catch (error: unknown) {
@@ -369,6 +404,7 @@ export class SwapAction {
       }
 
       const walletClient = this.walletProvider.getWalletClient(chainName as any);
+      const publicClient = this.walletProvider.getPublicClient(chainName as any);
 
       if (!walletClient.account) {
         throw new Error('Wallet account is not available');
@@ -385,19 +421,18 @@ export class SwapAction {
         ]);
         const spenderAddress = txRequest.to as Address; // LiFi contract address
 
-        const allowance: bigint = await this.walletProvider
-          .getPublicClient(chainName as any)
-          .readContract({
-            address: fromToken.address as Address,
-            abi: allowanceAbi,
-            functionName: 'allowance',
-            args: [walletClient.account.address, spenderAddress],
-          });
+        const allowance: bigint = await publicClient.readContract({
+          address: fromToken.address as Address,
+          abi: allowanceAbi,
+          functionName: 'allowance',
+          args: [walletClient.account.address, spenderAddress],
+        });
 
         const requiredAmount = BigInt(route.fromAmount);
 
         if (allowance < requiredAmount) {
-          console.log(`###### APPROVING ${fromToken.symbol} FOR LIFI CONTRACT`);
+          elizaLogger.info(`Approving ${fromToken.symbol} for LiFi contract...`);
+
           const approvalData = encodeFunctionData({
             abi: parseAbi(['function approve(address,uint256)']),
             functionName: 'approve',
@@ -411,6 +446,19 @@ export class SwapAction {
             data: approvalData,
             chain: walletClient.chain,
           });
+
+          // Wait for approval to be confirmed
+          elizaLogger.info(`Waiting for approval confirmation...`);
+          const approvalReceipt = await publicClient.waitForTransactionReceipt({
+            hash: approvalTx,
+            timeout: 60000, // 60 second timeout
+          });
+
+          if (approvalReceipt.status === 'reverted') {
+            throw new Error(`Token approval failed. Transaction hash: ${approvalTx}`);
+          }
+
+          elizaLogger.info(`Token approval confirmed. Proceeding with swap...`);
         }
       }
 
@@ -420,15 +468,13 @@ export class SwapAction {
         value: BigInt(txRequest.value || '0'),
         data: txRequest.data as `0x${string}`,
         chain: walletClient.chain,
-        gas: BigInt(Math.floor(Number(txRequest.gasLimit || '0') * 1.2)), // Add 20% gas buffer
+        gas: txRequest.gasLimit ? BigInt(Math.floor(Number(txRequest.gasLimit) * 1.2)) : undefined, // Add 20% gas buffer
         gasPrice: txRequest.gasPrice
           ? BigInt(Math.floor(Number(txRequest.gasPrice) * 1.1))
           : undefined, // 10% higher gas price for MEV protection
       });
 
       // Wait for transaction receipt to verify success
-      console.log(`###### WAITING FOR TRANSACTION RECEIPT: ${hash}`);
-      const publicClient = this.walletProvider.getPublicClient(chainName as any);
       const receipt = await publicClient.waitForTransactionReceipt({
         hash: hash,
         timeout: 60000, // 60 second timeout
@@ -439,8 +485,6 @@ export class SwapAction {
           `Transaction reverted on-chain. Hash: ${hash}. This could be due to price movement, insufficient gas, or MEV frontrunning. Please try again.`
         );
       }
-
-      console.log(`###### TRANSACTION CONFIRMED: ${hash}, Gas Used: ${receipt.gasUsed}`);
 
       return {
         hash,
@@ -468,7 +512,7 @@ export class SwapAction {
       }
 
       elizaLogger.error(`Failed to execute lifi quote: ${errorMessage}`);
-      return undefined;
+      throw new Error(errorMessage);
     }
   }
 
@@ -478,35 +522,59 @@ export class SwapAction {
   ): Promise<Transaction | undefined> {
     try {
       const bebopRoute: BebopRoute = quote.swapData as BebopRoute;
-      const allowanceAbi = parseAbi(['function allowance(address,address) view returns (uint256)']);
-      const allowance: bigint = await this.walletProvider
-        .getPublicClient(params.chain)
-        .readContract({
-          address: params.fromToken as Address,
-          abi: allowanceAbi,
-          functionName: 'allowance',
-          args: [bebopRoute.from, bebopRoute.approvalTarget],
-        });
-
       const walletClient = this.walletProvider.getWalletClient(params.chain);
+      const publicClient = this.walletProvider.getPublicClient(params.chain);
 
       if (!walletClient.account) {
         throw new Error('Wallet account is not available');
       }
 
-      if (allowance < BigInt(bebopRoute.sellAmount)) {
-        const approvalData = encodeFunctionData({
-          abi: parseAbi(['function approve(address,uint256)']),
-          functionName: 'approve',
-          args: [bebopRoute.approvalTarget, BigInt(bebopRoute.sellAmount)],
+      // Resolve token address for approval check
+      const chainConfig = this.walletProvider.getChainConfigs(params.chain);
+      const resolvedFromToken = await this.resolveTokenAddress(params.fromToken, chainConfig.id);
+
+      // Skip approval for native tokens
+      if (resolvedFromToken !== '0x0000000000000000000000000000000000000000') {
+        const allowanceAbi = parseAbi([
+          'function allowance(address,address) view returns (uint256)',
+        ]);
+        const allowance: bigint = await publicClient.readContract({
+          address: resolvedFromToken as Address,
+          abi: allowanceAbi,
+          functionName: 'allowance',
+          args: [walletClient.account.address, bebopRoute.approvalTarget],
         });
-        await walletClient.sendTransaction({
-          account: walletClient.account,
-          to: params.fromToken as Address,
-          value: 0n,
-          data: approvalData,
-          chain: walletClient.chain,
-        });
+
+        if (allowance < BigInt(bebopRoute.sellAmount)) {
+          elizaLogger.info(`Approving token for Bebop...`);
+
+          const approvalData = encodeFunctionData({
+            abi: parseAbi(['function approve(address,uint256)']),
+            functionName: 'approve',
+            args: [bebopRoute.approvalTarget, BigInt(bebopRoute.sellAmount)],
+          });
+
+          const approvalTx = await walletClient.sendTransaction({
+            account: walletClient.account,
+            to: resolvedFromToken as Address,
+            value: 0n,
+            data: approvalData,
+            chain: walletClient.chain,
+          });
+
+          // Wait for approval confirmation
+          elizaLogger.info(`Waiting for approval confirmation...`);
+          const approvalReceipt = await publicClient.waitForTransactionReceipt({
+            hash: approvalTx,
+            timeout: 60000,
+          });
+
+          if (approvalReceipt.status === 'reverted') {
+            throw new Error(`Token approval failed. Transaction hash: ${approvalTx}`);
+          }
+
+          elizaLogger.info(`Token approval confirmed. Proceeding with swap...`);
+        }
       }
 
       const hash = await walletClient.sendTransaction({
@@ -517,17 +585,28 @@ export class SwapAction {
         chain: walletClient.chain,
       });
 
+      // Wait for transaction confirmation
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: hash,
+        timeout: 60000,
+      });
+
+      if (receipt.status === 'reverted') {
+        throw new Error(`Bebop swap reverted. Transaction hash: ${hash}`);
+      }
+
       return {
         hash,
         from: walletClient.account.address,
         to: bebopRoute.to,
         value: BigInt(bebopRoute.value),
         data: bebopRoute.data as Hex,
+        chainId: chainConfig.id,
       };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       elizaLogger.error(`Failed to execute bebop quote: ${errorMessage}`);
-      return undefined;
+      throw new Error(errorMessage);
     }
   }
 }
@@ -545,7 +624,6 @@ const buildSwapDetails = async (
 
   state = await runtime.composeState(_message, ['RECENT_MESSAGES'], true);
   state.supportedChains = chains.join(' | ');
-  console.log('###### STATE', state);
   state.chainBalances = Object.entries(balances)
     .map(([chain, balance]) => {
       const chainConfig = wp.getChainConfigs(chain as any);
@@ -654,6 +732,7 @@ export const swapAction = {
 
       const swapResp = await action.swap(swapOptions);
 
+      // Only create success memory and callback after successful swap
       if (callback) {
         callback({
           text: `Successfully swapped ${swapOptions.amount} ${swapOptions.fromToken} for ${swapOptions.toToken} on ${swapOptions.chain}\nTransaction Hash: ${swapResp.hash}`,
@@ -661,17 +740,55 @@ export const swapAction = {
             success: true,
             hash: swapResp.hash,
             chain: swapOptions.chain,
+            fromToken: swapOptions.fromToken,
+            toToken: swapOptions.toToken,
+            amount: swapOptions.amount,
           },
         });
       }
+
       return true;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Error in swap handler:', errorMessage);
+
+      // Provide meaningful error messages
+      let userFriendlyMessage = '';
+
+      if (errorMessage.includes('TRANSFER_FROM_FAILED')) {
+        userFriendlyMessage =
+          "The swap failed because the tokens couldn't be transferred. This usually happens when you don't have enough tokens or the token has special restrictions.";
+      } else if (errorMessage.includes('price movement') || errorMessage.includes('slippage')) {
+        userFriendlyMessage =
+          'The swap failed because the token price changed too much while processing. This happens in volatile markets.';
+      } else if (errorMessage.includes('MEV') || errorMessage.includes('frontrunning')) {
+        userFriendlyMessage =
+          'The swap was blocked by trading bots that tried to take advantage of your transaction.';
+      } else if (errorMessage.includes('reverted')) {
+        userFriendlyMessage =
+          "The swap couldn't go through. This often happens when there isn't enough liquidity for the trade.";
+      } else if (errorMessage.includes('No routes found')) {
+        userFriendlyMessage =
+          "I couldn't find a way to swap these tokens. They might not be tradeable on this network.";
+      } else if (errorMessage.includes('All swap attempts failed')) {
+        userFriendlyMessage =
+          'The swap failed after trying different options. The tokens might have very low liquidity or trading restrictions.';
+      } else {
+        // For any other errors, keep it simple
+        userFriendlyMessage = "The swap couldn't be completed.";
+      }
+
       if (callback) {
         callback({
-          text: `Error: ${errorMessage}`,
-          content: { error: errorMessage },
+          text: userFriendlyMessage,
+          content: {
+            success: false,
+            error: errorMessage,
+            fromToken: state?.swapOptions?.fromToken,
+            toToken: state?.swapOptions?.toToken,
+            amount: state?.swapOptions?.amount,
+            chain: state?.swapOptions?.chain,
+          },
         });
       }
       return false;
