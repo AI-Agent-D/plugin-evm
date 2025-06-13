@@ -67,6 +67,7 @@ export interface TransferParams {
   toAddress: Address;
   amount: string;
   data?: `0x${string}`;
+  token?: string; // Token symbol or null for native transfers
 }
 
 export interface SwapParams {
