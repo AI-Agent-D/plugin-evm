@@ -24680,36 +24680,40 @@ ${balanceText}`,
 }
 
 // src/templates/index.ts
-var transferTemplate = `Given the recent messages and wallet information below:
+var transferTemplate = `You are helping an AI agent with a blockchain transaction by reading the past messages as shown below:
 
-  {{recentMessages}}
+{{recentMessages}}
 
-  {{chainBalances}}
-  
-  Your goal is to extract the following information for the requested transfer. Use the official token metadata for well-known tokens (like USDC) on the specified chain. Assume standard decimals unless you confirm otherwise:
-  
-  fromChain: Chain to execute on (must be one of the supported chains). This will be supplied; do not infer.
-  
-  amount: For native token transfers, use the amount in wei. For ERC-20 transfers, set this to 0.
-  
-  token: Use the symbol for native tokens, otherwise use the ERC-20 token symbol on the given chain.
-  
-  toAddress: If it's a native token transfer, this is the recipient. Otherwise, use the token contract address.
-  
-  data: For ERC-20 transfers, ABI encode the transfer(address,uint256) function. The amount should be in the smallest unit (e.g., 1 USDC = 1000000 as USDC is 6 decimal places).
-  
-  Respond with an XML block containing only the extracted values. All fields must be filled.
-  
-  <response>
-      <fromChain>{{supportedChains}} | null</fromChain>
-      <amount>string | null</amount>
-      <toAddress>string | null</toAddress>
-      <token>string | null</token>
-      <data>string</data>
-      <reason>string</reason>
-  </response>
-  
-  IMPORTANT: Your response must ONLY contain the <response></response> XML block above. Do not include any text, thinking, or reasoning before or after this XML block. Start your response immediately with <response> and end with </response>.
+{{chainBalances}}
+
+Follow these instructions to see what should be the final output, an XML file:
+
+Firstly, from the messages, I want you to decide if this is a native token transfer or not on the blockchain: {{supportedChains}}. A native token transfer involves the direct movement of a blockchain\u2019s built in currency.
+
+Secondly, I want you to extract the token symbol. If this is a native token transfer, then output the symbol for native tokens. If this is not a native token transfer, then extract the token symbol in ERC-20 version.
+
+Thirdly, I want you to extract the amount to be transferred. Based on the previous decision, if this transaction is a native token transfer then **report the amount in wei.** If this is **not** a native token transfer, this should be the **total amount of the token based on the second step** to be transferred by the AI agent to the recipient in **its smallest unit** (token decimals).
+
+## For this section, search online only if needed and use official sources only!
+Fourthly, deduce the address to send the token to. If this is a native token transfer, then use the recipient\u2019s address in the messages. If this not a native token transfer, then use the **token address for the token you chose from the third step for the blockchain:  {{supportedChains}}..** If you do not know the token address, then do a quick search to find out the token address in the blockchain: {{supportedChains}}.. **Never guess this** and only output null if you do not know the token address or if the recipient\u2019s address is not present.
+## End section.
+
+Fifth, go through the recent messages again and extract the recipient address (i.e the address where the AI agent sends the tokens to). **This is very important in the last step before putting the data inside the XML block**
+
+Respond using an XML block containing only the extracted values, whereby:
+Amount: If there is a native token transfer, then this should be in wei, or else it should be set to 0. **Do not rely on the value found in step 2 on this section.**
+toAddress: This is the token address found from the fourth step.
+Token: The token symbol from the third step.
+tokenDecimals: The full amount you obtained, in the third step, in full. (MUST BE IN INT)
+recipientAddress: The recipient address you extracted from the fifth step.
+
+All fields must be filled:
+
+<response>
+<fromChain>  {{supportedChains}}. </fromChain> <amount>string | null</amount> <toAddress>string | null</toAddress> <token>string | null</token> <tokenDecimals> int | null </tokenDecimals> <recipientAddress> str | null </recipientAddress>
+</response>
+
+IMPORTANT: Your response must ONLY contain the <response></response> XML block above. Do not include any text, thinking, or reasoning before or after this XML block. Start your response immediately with <response> and end with </response>.
 `;
 var bridgeTemplate = `Given the recent messages and wallet information below:
 
@@ -25868,8 +25872,7 @@ var swapAction = {
       const swapResp = await action.swap(swapOptions);
       if (callback) {
         callback({
-          text: `Successfully swapped ${swapOptions.amount} ${swapOptions.fromToken} for ${swapOptions.toToken} on ${swapOptions.chain}
-Transaction Hash: ${swapResp.hash}`,
+          text: `Successfully swapped ${swapOptions.amount} ${swapOptions.fromToken} for ${swapOptions.toToken} on ${swapOptions.chain} Transaction Hash: ${swapResp.hash}`,
           content: {
             success: true,
             hash: swapResp.hash,
@@ -25965,12 +25968,53 @@ var buildTransferDetails = async (state, _message, runtime, wp) => {
   const xmlResponse = await runtime.useModel(ModelType3.TEXT_SMALL, {
     prompt: context
   });
-  const parsedXml = parseKeyValueXml3(xmlResponse);
+  let parsedXml = parseKeyValueXml3(xmlResponse);
   if (!parsedXml) {
     throw new Error(
       "Failed to parse XML response from LLM for transfer details."
     );
   }
+  const abi2 = [
+    {
+      "constant": false,
+      "inputs": [
+        {
+          "name": "_sireId",
+          "type": "address"
+        },
+        {
+          "name": "_matronId",
+          "type": "uint256"
+        }
+      ],
+      "name": "transfer",
+      "outputs": [],
+      "payable": true,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ];
+  let data = "";
+  if (parsedXml.amount !== "0") {
+    data = encodeFunctionData({
+      abi: abi2,
+      functionName: "transfer",
+      args: [
+        parsedXml.recipientAddress,
+        parsedXml.amount
+      ]
+    });
+  } else {
+    data = encodeFunctionData({
+      abi: abi2,
+      functionName: "transfer",
+      args: [
+        parsedXml.recipientAddress,
+        parsedXml.tokenDecimals
+      ]
+    });
+  }
+  parsedXml.data = data;
   const transferDetails = parsedXml;
   const normalizedChainName = transferDetails.fromChain.toLowerCase();
   const existingChain = wp.chains[normalizedChainName];
@@ -26000,17 +26044,17 @@ var transferAction = {
     try {
       const transferResp = await action.transfer(paramOptions);
       if (callback) {
-        callback({
-          text: `Successfully transferred ${paramOptions.amount} tokens to ${paramOptions.toAddress}
-Transaction Hash: ${transferResp.hash}`,
-          content: {
-            success: true,
-            hash: transferResp.hash,
-            amount: formatEther(transferResp.value),
-            recipient: transferResp.to,
-            chain: paramOptions.fromChain
-          }
-        });
+        if (paramOptions.amount)
+          callback({
+            text: `Successfully transferred ${paramOptions.amount} tokens to ${paramOptions.toAddress} Transaction Hash: https://www.basescan.org/tx/${transferResp.hash}`,
+            content: {
+              success: true,
+              hash: transferResp.hash,
+              amount: formatEther(transferResp.value),
+              recipient: transferResp.to,
+              chain: paramOptions.fromChain
+            }
+          });
       }
       return true;
     } catch (error) {

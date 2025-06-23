@@ -8,11 +8,52 @@ import {
   parseKeyValueXml,
   composePromptFromState,
 } from "@elizaos/core";
-import { type Hex, formatEther, parseEther } from "viem";
+import { type Hex, encodeFunctionData, formatEther, parseEther } from "viem";
 
 import { type WalletProvider, initWalletProvider } from "../providers/wallet";
 import { transferTemplate } from "../templates";
 import type { Transaction, TransferParams } from "../types";
+
+export const ABIEncoding = async(parsedXml: Omit<TransferParams, "data">) => {
+  const abi = [
+    {
+        "constant": false,
+        "inputs": [
+            {
+                "name": "_sireId",
+                "type": "address"
+            },
+            {
+                "name": "_matronId",
+                "type": "uint256"
+            }
+        ],
+        "name": "transfer",
+        "outputs": [],
+        "payable": true,
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+    ]
+
+  let data = ''
+  
+  if (parsedXml.amount !== '0') {
+    data = encodeFunctionData({
+      abi: abi,
+      functionName: 'transfer',
+      args: [
+        parsedXml.recipientAddress,
+        parsedXml.tokenDecimals,
+      ]
+    }) as `0x${string}`
+
+  } else {
+    data = '0x' as `0x${string}`
+  };
+
+  return data
+};
 
 // Exported for tests
 export class TransferAction {
@@ -21,6 +62,10 @@ export class TransferAction {
   async transfer(params: TransferParams): Promise<Transaction> {
     if (!params.data) {
       params.data = "0x";
+    }
+
+    if ((params.amount === "0" && params.toAddress === params.recipientAddress) || (params.tokenDecimals === "0" && !params.recipientAddress.length)) {
+        throw new Error("0 transfer!")
     }
 
     const walletClient = this.walletProvider.getWalletClient(params.fromChain);
@@ -53,7 +98,7 @@ export class TransferAction {
   }
 }
 
-const buildTransferDetails = async (
+export const buildTransferDetails = async (
   state: State,
   _message: Memory,
   runtime: IAgentRuntime,
@@ -82,7 +127,7 @@ const buildTransferDetails = async (
     prompt: context,
   });
 
-  const parsedXml = parseKeyValueXml(xmlResponse);
+  let parsedXml = parseKeyValueXml(xmlResponse) as Omit<TransferParams, "data">;
 
   if (!parsedXml) {
     throw new Error(
@@ -90,7 +135,12 @@ const buildTransferDetails = async (
     );
   }
 
-  const transferDetails = parsedXml as unknown as TransferParams;
+  // Write th VIEM function here
+  const data = await ABIEncoding(parsedXml)
+  const transferDetails = {
+    ...parsedXml,
+    data
+  } as unknown as TransferParams;
 
   // Normalize chain name to lowercase to handle case sensitivity issues
   const normalizedChainName = transferDetails.fromChain.toLowerCase();
@@ -141,8 +191,10 @@ export const transferAction: Action = {
     try {
       const transferResp = await action.transfer(paramOptions);
       if (callback) {
+
+        if (paramOptions.amount) 
         callback({
-          text: `Successfully transferred ${paramOptions.amount} tokens to ${paramOptions.toAddress}\nTransaction Hash: ${transferResp.hash}`,
+          text: `Successfully transferred ${paramOptions.amount} tokens to ${paramOptions.toAddress} Transaction Hash: ${transferResp.hash}`,
           content: {
             success: true,
             hash: transferResp.hash,

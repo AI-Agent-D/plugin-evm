@@ -21,7 +21,7 @@ export const customTestChain = defineChain({
   rpcUrls: {
     default: { http: ["https://sepolia-rollup.arbitrum.io/rpc"] },
     public: { http: ["https://sepolia-rollup.arbitrum.io/rpc"] },
-  },
+  }, 
   blockExplorers: {
     default: { name: "Arbiscan Sepolia", url: "https://sepolia.arbiscan.io" },
   },

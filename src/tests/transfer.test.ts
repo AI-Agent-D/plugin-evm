@@ -3,9 +3,12 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import type { Account, Chain } from "viem";
 import { parseEther, formatEther } from "viem";
 
-import { TransferAction } from "../actions/transfer";
+import { ABIEncoding, buildTransferDetails, TransferAction, transferAction } from "../actions/transfer";
 import { WalletProvider } from "../providers/wallet";
 import { sepolia, baseSepolia, getTestChains } from "./custom-chain";
+import { IAgentRuntime, Memory, MemoryType } from "@elizaos/core";
+import { Plugin } from "prettier";
+import { character } from "./custom-character";
 
 // Test environment - use a funded wallet private key for real testing
 const TEST_PRIVATE_KEY = process.env.TEST_PRIVATE_KEY || generatePrivateKey();
@@ -77,6 +80,10 @@ describe("Transfer Action", () => {
           fromChain: "sepolia" as any,
           toAddress: receiver.address,
           amount: "1000000", // 1M ETH - definitely insufficient
+          recipientAddress: "0xrecipientAddress",
+          token: "ETH",
+          tokenDecimals: "0",
+          data: "0x"
         }),
       ).rejects.toThrow();
     });
@@ -87,16 +94,24 @@ describe("Transfer Action", () => {
           fromChain: "sepolia" as any,
           toAddress: "invalid-address" as any,
           amount: "0.001",
+          recipientAddress: "0xabc",
+          token: "ETH",
+          tokenDecimals: "0",
+          data: "0x"
         }),
       ).rejects.toThrow();
     });
 
-    it("should handle zero amount transfers", async () => {
+    it("should handle zero amount transfers (eth)", async () => {
       await expect(
         ta.transfer({
           fromChain: "sepolia" as any,
           toAddress: receiver.address,
           amount: "0",
+          recipientAddress: receiver.address,
+          token: "ETH",
+          tokenDecimals: "0",
+          data: "0x"
         }),
       ).rejects.toThrow();
     });
@@ -112,6 +127,10 @@ describe("Transfer Action", () => {
             fromChain: "sepolia" as any,
             toAddress: receiver.address,
             amount: "0.0001", // Very small amount
+            recipientAddress: "0xrecipientAddress",
+            token: "ETH",
+          tokenDecimals: "0",
+          data: "0x"
           });
 
           expect(result.hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
@@ -125,6 +144,10 @@ describe("Transfer Action", () => {
               fromChain: "sepolia" as any,
               toAddress: receiver.address,
               amount: "0.001",
+              recipientAddress: "0xrecipientAddress",
+              token: "ETH",
+          tokenDecimals: "0",
+          data: "0x"
             }),
           ).rejects.toThrow("Transfer failed");
         }
@@ -139,6 +162,10 @@ describe("Transfer Action", () => {
             fromChain: "baseSepolia" as any,
             toAddress: receiver.address,
             amount: "0.0001",
+            recipientAddress: "0xrecipientAddress",
+            token: "ETH",
+          tokenDecimals: "0",
+          data: "0x"
           });
 
           expect(result.hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
@@ -152,10 +179,65 @@ describe("Transfer Action", () => {
               fromChain: "baseSepolia" as any,
               toAddress: receiver.address,
               amount: "0.001",
+              recipientAddress: "0xrecipientAddress",
+              token: "ETH",
+              tokenDecimals: "0",
+              data: "0x"
             }),
           ).rejects.toThrow("Transfer failed");
         }
       });
+    });
+
+    it("should work with Base Sepolia testnet (for usdc)", async () => {
+      const balance = await wp.getWalletBalanceForChain("baseSepolia");
+      console.log(`Base Sepolia balance: ${balance} ETH`);
+
+      const usdcAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+
+      if (balance && parseFloat(balance) > 0.001) {
+        const result = await ta.transfer({
+          fromChain: "baseSepolia" as any,
+          toAddress: usdcAddress,
+          amount: "0",
+          recipientAddress: receiver.address,
+          token: "USDC",
+          tokenDecimals: "1000000",
+          data: await ABIEncoding({
+            fromChain: "baseSepolia" as any,
+            toAddress: usdcAddress,
+            amount: "0",
+            recipientAddress: receiver.address,
+            token: "USDC",
+            tokenDecimals: "1000000"
+          }) as `0x${string}`
+        }); // Don't forget to change the address later!
+
+        expect(result.hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
+        expect(result.to).toBe(usdcAddress);
+      } else {
+        console.warn(
+          "Skipping Base Sepolia transfer test - insufficient balance",
+        );
+        await expect(
+          ta.transfer({
+            fromChain: "baseSepolia" as any,
+            toAddress: usdcAddress,
+            amount: "0",
+            recipientAddress: receiver.address,
+            token: "USDC",
+            tokenDecimals: "1000000",
+            data: await ABIEncoding({
+              fromChain: "baseSepolia" as any,
+              toAddress: usdcAddress,
+              amount: "0",
+              recipientAddress: receiver.address,
+              token: "USDC",
+              tokenDecimals: "1000000"
+            }) as `0x${string}`
+          }), //Don't forget to change the address later!
+        ).rejects.toThrow("Transfer failed");
+      }
     });
 
     describe("Integration tests with funded wallet", () => {
@@ -181,6 +263,10 @@ describe("Transfer Action", () => {
             fromChain: "sepolia" as any,
             toAddress: receiver.address,
             amount: "0.001", // 0.001 ETH
+            recipientAddress: "0xrecipientAddress",
+            token: "ETH",
+          tokenDecimals: "0",
+          data: "0x"
           });
 
           expect(result.hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
@@ -262,3 +348,113 @@ const prepareChains = () => {
 
   return customChains;
 };
+
+// Build Transfer Details must be tested! For ETH and ERC20
+
+// Transfer.ts transferAction
+
+describe("transferAction Action Test", () => {
+  let wp: WalletProvider;
+  let testChains: Record<string, Chain>;
+  let ta: TransferAction;
+  let receiver: Account;
+  let AgentRuntime: IAgentRuntime;
+  let memory: Memory;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    mockCacheManager.get.mockResolvedValue(null);
+
+    testChains = getTestChains();
+    const pk = TEST_PRIVATE_KEY as `0x${string}`;
+
+    // Initialize with Sepolia and Base Sepolia testnets
+    const customChains = {
+      sepolia: testChains.sepolia,
+      baseSepolia: testChains.baseSepolia,
+    };
+
+    receiver = privateKeyToAccount(generatePrivateKey());
+    wp = new WalletProvider(pk, mockCacheManager as any, customChains);
+    ta = new TransferAction(wp);
+
+    const mockMemory = {
+      entityId: 'abc',
+      content: {},
+      roomId: 'abc'
+    } as unknown as Memory
+
+    const mockRuntime = {
+      character: { ...character },
+      plugins: [],
+      registerPlugin: vi.fn().mockImplementation((plugin: Plugin) => {
+        // In a real runtime, registering the plugin would call its init method,
+        // but since we're testing init itself, we just need to record the call
+        return Promise.resolve();
+      }),
+      initialize: vi.fn(),
+      getService: vi.fn(),
+      getSetting: vi.fn().mockReturnValue(null),
+      useModel: vi.fn().mockResolvedValue('Test model response'),
+      getProviderResults: vi.fn().mockResolvedValue([]),
+      evaluateProviders: vi.fn().mockResolvedValue([]),
+      evaluate: vi.fn().mockResolvedValue([]),
+    } as unknown as IAgentRuntime;
+
+
+  afterEach(() => {
+    // Remove vi.clearAllTimers() as it's not needed in Bun test runner
+  });
+
+  describe("Complete", () => {
+    it("should use the correct parameters during transfer", async () => {
+
+      // Mock the TransferAction Action
+      // Mock the ParamOptions
+      // Spy On the callback function's parameters
+      const mockBuildTransferDetails = vi.mocked(buildTransferDetails)
+
+      mockBuildTransferDetails.mockResolvedValueOnce({
+        fromChain: "sepolia" as any,
+        toAddress: receiver.address,
+        amount: "0.001",
+        recipientAddress: "0xrecipientAddress",
+        token: "ETH",
+        tokenDecimals: "0",
+        data: "0x"
+      }) 
+
+      const transferSpy = vi.spyOn(ta, 'transfer')
+      //transferAction.handler(mockRuntime, mockMemory)
+
+
+
+    })
+  })
+
+  describe("empty recipient", () => {
+    it("should return an error.", async () => {
+      
+    })
+  })
+
+  describe("empty hash", () => {
+    it("should return an error.", async () => {
+      
+    })
+  })
+
+  describe("empty chain", () => {
+    it("should return an error.", async () => {
+      
+    })
+  })
+
+  describe("empty amount", () => {
+    it("should return an error.", async () => {
+      
+    })
+  })
+
+})
+})
