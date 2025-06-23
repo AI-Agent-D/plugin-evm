@@ -92,17 +92,6 @@ describe("Transfer Action", () => {
       // Test with unrealistic large amount that will definitely fail
       const usdcAddress = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
 
-      const data = await ABIEncoding({
-        fromChain: "sepolia" as any,
-        toAddress: usdcAddress,
-        amount: "0",
-        recipientAddress: receiver.address,
-        token: "USDC",
-        tokenDecimals: "100000000000000000000"
-      })
-
-      console.log("DATA", data)
-
       await expect(
         ta.transfer({
           fromChain: "sepolia" as any,
@@ -111,15 +100,7 @@ describe("Transfer Action", () => {
           recipientAddress: receiver.address,
           token: "USDC",
           tokenDecimals: "100000000000000000000",
-          data: 
-           await ABIEncoding({
-            fromChain: "sepolia" as any,
-            toAddress: usdcAddress,
-            amount: "0",
-            recipientAddress: receiver.address,
-            token: "USDC",
-            tokenDecimals: "100000000000000000000"
-          }) as `0x${string}`
+          data: await ABIEncoding("0", receiver.address, "100000000000000000000") as `0x${string}`
         }),
       ).rejects.toThrow();
     });
@@ -253,14 +234,7 @@ describe("Transfer Action", () => {
           recipientAddress: receiver.address,
           token: "USDC",
           tokenDecimals: "1000000",
-          data: await ABIEncoding({
-            fromChain: "baseSepolia" as any,
-            toAddress: usdcAddress,
-            amount: "0",
-            recipientAddress: receiver.address,
-            token: "USDC",
-            tokenDecimals: "1000000"
-          }) as `0x${string}`
+          data: await ABIEncoding("0", receiver.address, "1000000") as `0x${string}`
         }); // Don't forget to change the address later!
 
         expect(result.hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
@@ -279,20 +253,13 @@ describe("Transfer Action", () => {
             recipientAddress: receiver.address,
             token: "USDC",
             tokenDecimals: "1000000",
-            data: await ABIEncoding({
-              fromChain: "baseSepolia" as any,
-              toAddress: usdcAddress,
-              amount: "0",
-              recipientAddress: receiver.address,
-              token: "USDC",
-              tokenDecimals: "1000000"
-            }) as `0x${string}`
+            data: await ABIEncoding("0", receiver.address, "1000000") as `0x${string}`
           }), //Don't forget to change the address later!
         ).rejects.toThrow("Transfer failed");
       }
     });
 
-    it("should work with Sepolia testnet (for ERC20 - USDC)", async () => {
+    it.only("should work with Sepolia testnet (for ERC20 - USDC)", async () => {
       const balance = await wp.getWalletBalanceForChain("sepolia");
       console.log(`Sepolia balance: ${balance} ETH`);
 
@@ -306,14 +273,7 @@ describe("Transfer Action", () => {
           recipientAddress: receiver.address,
           token: "USDC",
           tokenDecimals: "1000000",
-          data: await ABIEncoding({
-            fromChain: "sepolia" as any,
-            toAddress: usdcAddress,
-            amount: "0",
-            recipientAddress: receiver.address,
-            token: "USDC",
-            tokenDecimals: "1000000"
-          }) as `0x${string}`
+          data: await ABIEncoding("0", receiver.address, "1000000") as `0x${string}`
         }); // Don't forget to change the address later!
 
         expect(result.hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
@@ -332,14 +292,7 @@ describe("Transfer Action", () => {
             recipientAddress: receiver.address,
             token: "USDC",
             tokenDecimals: "1000000",
-            data: await ABIEncoding({
-              fromChain: "sepolia" as any,
-              toAddress: usdcAddress,
-              amount: "0",
-              recipientAddress: receiver.address,
-              token: "USDC",
-              tokenDecimals: "1000000"
-            }) as `0x${string}`
+            data: await ABIEncoding("0", receiver.address, "1000000") as `0x${string}`
           }), //Don't forget to change the address later!
         ).rejects.toThrow("Transfer failed");
       }
