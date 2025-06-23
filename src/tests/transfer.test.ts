@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import type { Account, Chain } from "viem";
-import { parseEther, formatEther } from "viem";
+import { type Hex, parseEther, formatEther, encodeFunctionData } from "viem";
 
 import { ABIEncoding, buildTransferDetails, TransferAction, transferAction } from "../actions/transfer";
 import { WalletProvider } from "../providers/wallet";
@@ -73,7 +73,7 @@ describe("Transfer Action", () => {
       expect(parseFloat(transferParams.amount)).toBeGreaterThan(0);
     });
 
-    it("should handle insufficient funds gracefully", async () => {
+    it("should handle insufficient funds gracefully (native tokens)", async () => {
       // Test with unrealistic large amount that will definitely fail
       await expect(
         ta.transfer({
@@ -84,6 +84,42 @@ describe("Transfer Action", () => {
           token: "ETH",
           tokenDecimals: "0",
           data: "0x"
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("should handle insufficient funds gracefully (ERC20)", async () => {
+      // Test with unrealistic large amount that will definitely fail
+      const usdcAddress = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
+
+      const data = await ABIEncoding({
+        fromChain: "sepolia" as any,
+        toAddress: usdcAddress,
+        amount: "0",
+        recipientAddress: receiver.address,
+        token: "USDC",
+        tokenDecimals: "100000000000000000000"
+      })
+
+      console.log("DATA", data)
+
+      await expect(
+        ta.transfer({
+          fromChain: "sepolia" as any,
+          toAddress: usdcAddress,
+          amount: "0", // 1M ETH - definitely insufficient
+          recipientAddress: receiver.address,
+          token: "USDC",
+          tokenDecimals: "100000000000000000000",
+          data: 
+           await ABIEncoding({
+            fromChain: "sepolia" as any,
+            toAddress: usdcAddress,
+            amount: "0",
+            recipientAddress: receiver.address,
+            token: "USDC",
+            tokenDecimals: "100000000000000000000"
+          }) as `0x${string}`
         }),
       ).rejects.toThrow();
     });
@@ -102,7 +138,7 @@ describe("Transfer Action", () => {
       ).rejects.toThrow();
     });
 
-    it("should handle zero amount transfers (eth)", async () => {
+    it("should handle zero amount transfers (Native)", async () => {
       await expect(
         ta.transfer({
           fromChain: "sepolia" as any,
@@ -110,6 +146,20 @@ describe("Transfer Action", () => {
           amount: "0",
           recipientAddress: receiver.address,
           token: "ETH",
+          tokenDecimals: "0",
+          data: "0x"
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("should handle zero amount transfers (ERC20)", async () => {
+      await expect(
+        ta.transfer({
+          fromChain: "sepolia" as any,
+          toAddress: receiver.address,
+          amount: "0",
+          recipientAddress: "0x123",
+          token: "USDC",
           tokenDecimals: "0",
           data: "0x"
         }),
@@ -189,11 +239,11 @@ describe("Transfer Action", () => {
       });
     });
 
-    it("should work with Base Sepolia testnet (for usdc)", async () => {
+    it("should work with Base Sepolia testnet (for ERC20 - USDC)", async () => {
       const balance = await wp.getWalletBalanceForChain("baseSepolia");
       console.log(`Base Sepolia balance: ${balance} ETH`);
 
-      const usdcAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      const usdcAddress = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
 
       if (balance && parseFloat(balance) > 0.001) {
         const result = await ta.transfer({
@@ -215,6 +265,8 @@ describe("Transfer Action", () => {
 
         expect(result.hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
         expect(result.to).toBe(usdcAddress);
+        expect(result.data.startsWith('0x')).toBe(true);
+        expect(result.value).toBe(0n)
       } else {
         console.warn(
           "Skipping Base Sepolia transfer test - insufficient balance",
@@ -229,6 +281,59 @@ describe("Transfer Action", () => {
             tokenDecimals: "1000000",
             data: await ABIEncoding({
               fromChain: "baseSepolia" as any,
+              toAddress: usdcAddress,
+              amount: "0",
+              recipientAddress: receiver.address,
+              token: "USDC",
+              tokenDecimals: "1000000"
+            }) as `0x${string}`
+          }), //Don't forget to change the address later!
+        ).rejects.toThrow("Transfer failed");
+      }
+    });
+
+    it("should work with Sepolia testnet (for ERC20 - USDC)", async () => {
+      const balance = await wp.getWalletBalanceForChain("sepolia");
+      console.log(`Sepolia balance: ${balance} ETH`);
+
+      const usdcAddress = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
+
+      if (balance && parseFloat(balance) > 0.001) {
+        const result = await ta.transfer({
+          fromChain: "sepolia" as any,
+          toAddress: usdcAddress,
+          amount: "0",
+          recipientAddress: receiver.address,
+          token: "USDC",
+          tokenDecimals: "1000000",
+          data: await ABIEncoding({
+            fromChain: "sepolia" as any,
+            toAddress: usdcAddress,
+            amount: "0",
+            recipientAddress: receiver.address,
+            token: "USDC",
+            tokenDecimals: "1000000"
+          }) as `0x${string}`
+        }); // Don't forget to change the address later!
+
+        expect(result.hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
+        expect(result.to).toBe(usdcAddress);
+        expect(result.data.startsWith('0x')).toBe(true);
+        expect(result.value).toBe(0n)
+      } else {
+        console.warn(
+          "Skipping Base Sepolia transfer test - insufficient balance",
+        );
+        await expect(
+          ta.transfer({
+            fromChain: "sepolia" as any,
+            toAddress: usdcAddress,
+            amount: "0",
+            recipientAddress: receiver.address,
+            token: "USDC",
+            tokenDecimals: "1000000",
+            data: await ABIEncoding({
+              fromChain: "sepolia" as any,
               toAddress: usdcAddress,
               amount: "0",
               recipientAddress: receiver.address,

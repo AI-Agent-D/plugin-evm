@@ -14,7 +14,7 @@ import { type WalletProvider, initWalletProvider } from "../providers/wallet";
 import { transferTemplate } from "../templates";
 import type { Transaction, TransferParams } from "../types";
 
-export const ABIEncoding = async(parsedXml: Omit<TransferParams, "data">) => {
+export const ABIEncoding = async(amount: string, recipientAddress: string, tokenDecimals: string) => {
   const abi = [
     {
         "constant": false,
@@ -38,13 +38,13 @@ export const ABIEncoding = async(parsedXml: Omit<TransferParams, "data">) => {
 
   let data = ''
   
-  if (parsedXml.amount !== '0') {
+  if (amount === '0') {
     data = encodeFunctionData({
       abi: abi,
       functionName: 'transfer',
       args: [
-        parsedXml.recipientAddress,
-        parsedXml.tokenDecimals,
+        recipientAddress,
+        tokenDecimals,
       ]
     }) as `0x${string}`
 
@@ -64,7 +64,7 @@ export class TransferAction {
       params.data = "0x";
     }
 
-    if ((params.amount === "0" && params.toAddress === params.recipientAddress) || (params.tokenDecimals === "0" && !params.recipientAddress.length)) {
+    if ((params.amount === "0" && params.toAddress === params.recipientAddress) || (params.amount === "0" && params.tokenDecimals === "0")) {
         throw new Error("0 transfer!")
     }
 
@@ -73,8 +73,9 @@ export class TransferAction {
     if (!walletClient.account) {
       throw new Error("Wallet account is not available");
     }
-
+  
     try {
+      
       const hash = await walletClient.sendTransaction({
         account: walletClient.account,
         to: params.toAddress,
@@ -136,7 +137,7 @@ export const buildTransferDetails = async (
   }
 
   // Write th VIEM function here
-  const data = await ABIEncoding(parsedXml)
+  const data = await ABIEncoding(parsedXml.amount, parsedXml.recipientAddress, parsedXml.tokenDecimals)
   const transferDetails = {
     ...parsedXml,
     data
