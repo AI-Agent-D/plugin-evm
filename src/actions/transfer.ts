@@ -193,7 +193,7 @@ export const transferAction: Action = {
       const transferResp = await action.transfer(paramOptions);
       if (callback) {
 
-        if (paramOptions.amount) 
+        if (paramOptions.amount)
         callback({
           text: `Successfully transferred ${paramOptions.amount} tokens to ${paramOptions.toAddress} Transaction Hash: ${transferResp.hash}`,
           content: {
