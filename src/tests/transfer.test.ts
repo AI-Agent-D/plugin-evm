@@ -76,7 +76,7 @@ describe("Transfer Action", () => {
         ta.transfer({
           fromChain: "sepolia" as any,
           toAddress: receiver.address,
-          amount: 1000000, // 1M ETH - definitely insufficient
+          amount: formatEther("1000000"), // 1M ETH - definitely insufficient
           recipientAddress: receiver.address,
           token: "ETH",
           tokenDecimals: 18,
@@ -93,11 +93,11 @@ describe("Transfer Action", () => {
         ta.transfer({
           fromChain: "sepolia" as any,
           toAddress: usdcAddress,
-          amount: 1000000000, 
+          amount: 1000000000n, 
           recipientAddress: receiver.address,
           token: "USDC",
           tokenDecimals: 6, // USDC Token Decimals
-          data: await getTransferData(1000000000, receiver.address, 6) as Hex
+          data: await getTransferData(1000000000n, receiver.address) as Hex
         }),
       ).rejects.toThrow();
     });
@@ -107,10 +107,10 @@ describe("Transfer Action", () => {
         ta.transfer({
           fromChain: "sepolia" as any,
           toAddress: "invalid-address" as any,
-          amount: 0.001,
+          amount: parseEther("0.0001"),
           recipientAddress: "0xabc",
           token: "ETH",
-          tokenDecimals: parseEther('1'),
+          tokenDecimals: 18,
           data: "0x"
         }),
       ).rejects.toThrow();
@@ -122,7 +122,7 @@ describe("Transfer Action", () => {
         ta.transfer({
           fromChain: "sepolia" as any,
           toAddress: receiver.address,
-          amount: 0,
+          amount: parseEther("0"),
           recipientAddress: receiver.address,
           token: "ETH",
           tokenDecimals: 18,
@@ -138,7 +138,7 @@ describe("Transfer Action", () => {
         ta.transfer({
           fromChain: "sepolia" as any,
           toAddress: usdcAddress,
-          amount: 0,
+          amount: BigInt(0),
           recipientAddress: receiver.address,
           token: "USDC",
           tokenDecimals: 6,
@@ -157,7 +157,7 @@ describe("Transfer Action", () => {
           const result = await ta.transfer({
             fromChain: "sepolia" as any,
             toAddress: receiver.address,
-            amount: 0.0001, // Very small amount
+            amount: parseEther("0.0001"), // Very small amount
             recipientAddress: receiver.address,
             token: "ETH",
             tokenDecimals: 18,
@@ -174,7 +174,7 @@ describe("Transfer Action", () => {
             ta.transfer({
               fromChain: "sepolia" as any,
               toAddress: receiver.address,
-              amount: 0.0001,
+              amount: parseEther("0.0001"),
               recipientAddress: "0xrecipientAddress",
               token: "ETH",
               tokenDecimals: 18,
@@ -192,7 +192,7 @@ describe("Transfer Action", () => {
           const result = await ta.transfer({
             fromChain: "baseSepolia" as any,
             toAddress: receiver.address,
-            amount: 0.0001, // Very small amount
+            amount: parseEther("0.0001"), // Very small amount
             recipientAddress: receiver.address,
             token: "ETH",
             tokenDecimals: 18,
@@ -209,7 +209,7 @@ describe("Transfer Action", () => {
             ta.transfer({
               fromChain: "baseSepolia" as any,
               toAddress: receiver.address,
-              amount: 0.0001, // Very small amount
+              amount: parseEther("0.0001"), // Very small amount
               recipientAddress: receiver.address,
               token: "ETH",
               tokenDecimals: 18,
@@ -230,7 +230,7 @@ describe("Transfer Action", () => {
         const result = await ta.transfer({
           fromChain: "baseSepolia" as any,
           toAddress: usdcAddress,
-          amount: 0.001,
+          amount: 1n,
           recipientAddress: receiver.address,
           token: "USDC",
           tokenDecimals: 6,
@@ -249,11 +249,11 @@ describe("Transfer Action", () => {
           ta.transfer({
             fromChain: "baseSepolia" as any,
             toAddress: usdcAddress,
-            amount: 0,
+            amount: BigInt(0),
             recipientAddress: receiver.address,
             token: "USDC",
             tokenDecimals: 6,
-            data: await getTransferData(0, receiver.address, 6) as Hex
+            data: await getTransferData(BigInt(0), receiver.address, 6) as Hex
           }), //Don't forget to change the address later!
         ).rejects.toThrow("Transfer failed");
       }
@@ -269,11 +269,11 @@ describe("Transfer Action", () => {
         const result = await ta.transfer({
           fromChain: "sepolia" as any,
           toAddress: usdcAddress,
-          amount: 0.001,
+          amount: 1n,
           recipientAddress: receiver.address,
           token: "USDC",
           tokenDecimals: 6,
-          data: await getTransferData(0, receiver.address, 6) as Hex
+          data: await getTransferData(0n, receiver.address, 6) as Hex
         }); // Don't forget to change the address later!
 
         expect(result.hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
@@ -288,7 +288,7 @@ describe("Transfer Action", () => {
           ta.transfer({
             fromChain: "sepolia" as any,
             toAddress: usdcAddress,
-            amount: 0,
+            amount: BigInt(0),
             recipientAddress: receiver.address,
             token: "USDC",
             tokenDecimals: 6,
@@ -320,7 +320,7 @@ describe("Transfer Action", () => {
           const result = await fundedTa.transfer({
             fromChain: "sepolia" as any,
             toAddress: receiver.address,
-            amount: 0.001, // 0.001 ETH
+            amount: parseEther("0.0001"), // 0.001 ETH
             recipientAddress: "0xrecipientAddress",
             token: "ETH",
             tokenDecimals: 18,

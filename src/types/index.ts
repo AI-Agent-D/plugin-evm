@@ -68,7 +68,7 @@ export interface ChainConfig {
 export interface TransferParams {
   fromChain: SupportedChain;
   toAddress: Address;
-  amount: bigint | number;
+  amount: bigint;
   data?: Hex;
   tokenDecimals: number;
   token: string;

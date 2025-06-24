@@ -8,7 +8,7 @@ import {
   parseKeyValueXml,
   composePromptFromState,
 } from "@elizaos/core";
-import { type Hex, encodeFunctionData, formatEther, getAddress, parseEther, parseUnits } from "viem";
+import { type Hex, encodeFunctionData, formatEther, formatUnits, getAddress, parseEther, parseUnits } from "viem";
 
 import { type WalletProvider, initWalletProvider } from "../providers/wallet";
 import { transferTemplate } from "../templates";
@@ -16,7 +16,7 @@ import type { Transaction, TransferParams } from "../types";
 import { supportedChains } from "@lifi/data-types";
 import { printer } from "prettier/doc.js";
 
-export const getTransferData = async (amount: bigint | number, recipientAddress: string, tokenDecimals: number): Promise<Hex> => {
+export const getTransferData = async (amountDecimals: bigint, recipientAddress: string): Promise<Hex> => {
 
   const abi = [
     {
@@ -44,11 +44,10 @@ export const getTransferData = async (amount: bigint | number, recipientAddress:
       functionName: 'transfer',
       args: [
         recipientAddress,
-        parseUnits(String(amount), tokenDecimals)
+        amountDecimals
       ]
     }) 
   };
-
 
 // Exported for tests
 
@@ -72,7 +71,7 @@ export class TransferAction {
   
     try {
 
-      const value = isNativeTransfer(params) ? parseEther(params.amount.toString()) : BigInt(0)
+      const value = isNativeTransfer(params) ? params.amount : BigInt(0)
 
       const hash = await walletClient.sendTransaction({
         account: walletClient.account,
@@ -138,16 +137,14 @@ export const buildTransferDetails = async (
   const transferDetails = {
     ...parsedXml,
     fromChain: parsedXml.fromChain,
-    amount: BigInt(parsedXml.amount),
     recipientAddress: getAddress(parsedXml.recipientAddress),
     tokenDecimals: Number(parsedXml.tokenDecimals),
     toAddress: getAddress(parsedXml.toAddress),
     token: parsedXml.token
   } as TransferParams;
 
-  const data = await getTransferData(transferDetails.amount, transferDetails.recipientAddress, transferDetails.tokenDecimals)
-
-  transferDetails.data = data 
+  transferDetails.amount = BigInt(parseUnits(parsedXml.amount, transferDetails.tokenDecimals));
+  transferDetails.data = await getTransferData(transferDetails.amount, transferDetails.recipientAddress);
 
   // Normalize chain name to lowercase to handle case sensitivity issues
   const normalizedChainName = transferDetails.fromChain.toLowerCase();
@@ -200,7 +197,7 @@ export const transferAction: Action = {
       if (callback) {
 
         callback({
-          text: `Successfully transferred ${paramOptions.amount} tokens to ${paramOptions.recipientAddress} Transaction Hash: ${transferResp.hash}`,
+          text: `Successfully transferred ${formatUnits(paramOptions.amount, paramOptions.tokenDecimals)} tokens to ${paramOptions.recipientAddress} Transaction Hash: ${transferResp.hash}`,
           content: {
             success: true,
             hash: transferResp.hash,

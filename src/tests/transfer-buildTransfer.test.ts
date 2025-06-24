@@ -89,7 +89,7 @@ describe("transferAction Action Test", () => {
 
         const transferDetails = await buildTransferDetails(mockState, mockMemory, mockRuntime, wp);
         console.log(transferDetails)
-
+        
         
       })
     })
