@@ -10,19 +10,21 @@ Firstly, from the messages, I want you to decide if this is a native token trans
 
 Secondly, I want you to extract the token symbol. If this is a native token transfer, then output the symbol for native tokens. If this is not a native token transfer, then extract the token symbol in ERC-20 version.
 
-Thirdly, I want you to extract the amount to be transferred. Based on the previous decision, if this transaction is a native token transfer then **report the amount in wei.** If this is **not** a native token transfer, this should be the **total amount of the token based on the second step** to be transferred by the AI agent to the recipient in **its smallest unit** (token decimals).
+Thirdly, I want you to extract the amount to be transferred between one address to another.
 
 ## For this section, search online only if needed and use official sources only!
 Fourthly, deduce the address to send the token to. If this is a native token transfer, then use the recipient’s address in the messages. If this not a native token transfer, then use the **token address for the token you chose from the third step for the blockchain:  {{supportedChains}}..** If you do not know the token address, then do a quick search to find out the token address in the blockchain: {{supportedChains}}.. **Never guess this** and only output null if you do not know the token address or if the recipient’s address is not present.
 ## End section.
 
-Fifth, go through the recent messages again and extract the recipient address (i.e the address where the AI agent sends the tokens to). **This is very important in the last step before putting the data inside the XML block**
+Fifth, go through the recent messages again and extract the recipient address (i.e the address where the AI agent sends the tokens to). 
+
+Sixth, I want you to use the token symbol you found in the second step and deduce the number of token decimals needed for the transfer. 
 
 Respond using an XML block containing only the extracted values, whereby:
-amount: If there is a native token transfer, then this should be in wei, or else it should be set to 0. **Do not rely on the value found in step 2 on this section.**
+amount: The amount found from the third step.
 toAddress: This is the address found from the fourth step.
-token: The token symbol from the third step.
-tokenDecimals: The full amount you obtained, in the third step, in full. (MUST BE IN INT)
+token: The token symbol from the second step.
+tokenDecimals: The number of token decimals you obtained, in the sixth step. (MUST BE IN INT)
 recipientAddress: The recipient address you extracted from the fifth step.
 
 All fields must be filled:

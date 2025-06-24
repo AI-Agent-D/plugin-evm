@@ -8,23 +8,26 @@ import {
   parseKeyValueXml,
   composePromptFromState,
 } from "@elizaos/core";
-import { type Hex, encodeFunctionData, formatEther, parseEther } from "viem";
+import { type Hex, encodeFunctionData, formatEther, getAddress, parseEther, parseUnits } from "viem";
 
 import { type WalletProvider, initWalletProvider } from "../providers/wallet";
 import { transferTemplate } from "../templates";
 import type { Transaction, TransferParams } from "../types";
+import { supportedChains } from "@lifi/data-types";
+import { printer } from "prettier/doc.js";
 
-export const ABIEncoding = async(amount: string, recipientAddress: string, tokenDecimals: string) => {
+export const getTransferData = async (amount: bigint | number, recipientAddress: string, tokenDecimals: number): Promise<Hex> => {
+
   const abi = [
     {
         "constant": false,
         "inputs": [
             {
-                "name": "_sireId",
+                "name": "to",
                 "type": "address"
             },
             {
-                "name": "_matronId",
+                "name": "amount",
                 "type": "uint256"
             }
         ],
@@ -36,35 +39,28 @@ export const ABIEncoding = async(amount: string, recipientAddress: string, token
     }
     ]
 
-  let data = ''
-  
-  if (amount === '0') {
-    data = encodeFunctionData({
+    return encodeFunctionData({
       abi: abi,
       functionName: 'transfer',
       args: [
         recipientAddress,
-        tokenDecimals,
+        parseUnits(String(amount), tokenDecimals)
       ]
-    }) as `0x${string}`
-
-  } else {
-    data = '0x' as `0x${string}`
+    }) 
   };
 
-  return data
-};
 
 // Exported for tests
+
+const isNativeTransfer = (transferParams: TransferParams) => {
+  return (transferParams.toAddress === transferParams.recipientAddress)
+}
 export class TransferAction {
   constructor(private walletProvider: WalletProvider) {}
 
   async transfer(params: TransferParams): Promise<Transaction> {
-    if (!params.data) {
-      params.data = "0x";
-    }
 
-    if ((params.amount === "0" && params.toAddress === params.recipientAddress) || (params.amount === "0" && params.tokenDecimals === "0")) {
+    if (!params.amount) {
         throw new Error("0 transfer!")
     }
 
@@ -75,12 +71,14 @@ export class TransferAction {
     }
   
     try {
-      
+
+      const value = isNativeTransfer(params) ? parseEther(params.amount.toString()) : BigInt(0)
+
       const hash = await walletClient.sendTransaction({
         account: walletClient.account,
         to: params.toAddress,
-        value: parseEther(params.amount),
-        data: params.data as Hex,
+        value,
+        data: params.data,
         chain: walletClient.chain,
       });
 
@@ -88,7 +86,7 @@ export class TransferAction {
         hash,
         from: walletClient.account.address,
         to: params.toAddress,
-        value: parseEther(params.amount),
+        value,
         data: params.data as Hex,
       };
     } catch (error: unknown) {
@@ -128,7 +126,8 @@ export const buildTransferDetails = async (
     prompt: context,
   });
 
-  let parsedXml = parseKeyValueXml(xmlResponse) as Omit<TransferParams, "data">;
+  const parsedXml = parseKeyValueXml(xmlResponse);
+  
 
   if (!parsedXml) {
     throw new Error(
@@ -136,12 +135,19 @@ export const buildTransferDetails = async (
     );
   }
 
-  // Write th VIEM function here
-  const data = await ABIEncoding(parsedXml.amount, parsedXml.recipientAddress, parsedXml.tokenDecimals)
   const transferDetails = {
     ...parsedXml,
-    data
-  } as unknown as TransferParams;
+    fromChain: parsedXml.fromChain,
+    amount: BigInt(parsedXml.amount),
+    recipientAddress: getAddress(parsedXml.recipientAddress),
+    tokenDecimals: Number(parsedXml.tokenDecimals),
+    toAddress: getAddress(parsedXml.toAddress),
+    token: parsedXml.token
+  } as TransferParams;
+
+  const data = await getTransferData(transferDetails.amount, transferDetails.recipientAddress, transferDetails.tokenDecimals)
+
+  transferDetails.data = data 
 
   // Normalize chain name to lowercase to handle case sensitivity issues
   const normalizedChainName = transferDetails.fromChain.toLowerCase();
@@ -193,14 +199,13 @@ export const transferAction: Action = {
       const transferResp = await action.transfer(paramOptions);
       if (callback) {
 
-        if (paramOptions.amount)
         callback({
-          text: `Successfully transferred ${paramOptions.amount} tokens to ${paramOptions.toAddress} Transaction Hash: ${transferResp.hash}`,
+          text: `Successfully transferred ${paramOptions.amount} tokens to ${paramOptions.recipientAddress} Transaction Hash: ${transferResp.hash}`,
           content: {
             success: true,
             hash: transferResp.hash,
-            amount: formatEther(transferResp.value),
-            recipient: transferResp.to,
+            amount: paramOptions.amount,
+            recipient: paramOptions.recipientAddress,
             chain: paramOptions.fromChain,
           },
         });

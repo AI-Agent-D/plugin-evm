@@ -8,6 +8,7 @@ import type {
   PublicClient,
   WalletClient,
   Log,
+  Hex,
 } from "viem";
 import * as viemChains from "viem/chains";
 
@@ -67,11 +68,11 @@ export interface ChainConfig {
 export interface TransferParams {
   fromChain: SupportedChain;
   toAddress: Address;
-  amount: string;
-  data?: `0x${string}`;
-  tokenDecimals: string,
-  token: string,
-  recipientAddress: `0x${string}`;
+  amount: bigint | number;
+  data?: Hex;
+  tokenDecimals: number;
+  token: string;
+  recipientAddress: Address;
 }
 
 export interface SwapParams {
