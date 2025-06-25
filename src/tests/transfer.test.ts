@@ -1,15 +1,17 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import type { Account, Chain } from "viem";
-import { type Hex, parseEther, formatEther, encodeFunctionData, parseUnits } from "viem";
+import { type Hex, parseEther, formatEther, encodeFunctionData, parseUnits, createPublicClient, http } from "viem";
 
-import { getTransferData, buildTransferDetails, TransferAction, transferAction } from "../actions/transfer";
+import { getTransferCallData, buildTransferDetails, TransferAction, transferAction } from "../actions/transfer";
 import { WalletProvider } from "../providers/wallet";
 import { sepolia, baseSepolia, getTestChains } from "./custom-chain";
 
 // Test environment - use a funded wallet private key for real testing
 const TEST_PRIVATE_KEY = process.env.TEST_PRIVATE_KEY || generatePrivateKey();
 const FUNDED_TEST_WALLET = process.env.FUNDED_TEST_PRIVATE_KEY; // Optional funded wallet for integration tests
+const usdcAddressSepolia = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
+const usdcAddressBase = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
 
 // Mock the ICacheManager
 const mockCacheManager = {
@@ -76,7 +78,7 @@ describe("Transfer Action", () => {
         ta.transfer({
           fromChain: "sepolia" as any,
           toAddress: receiver.address,
-          amount: formatEther("1000000"), // 1M ETH - definitely insufficient
+          amount: parseEther("1000000"), // 1M ETH - definitely insufficient
           recipientAddress: receiver.address,
           token: "ETH",
           tokenDecimals: 18,
@@ -87,17 +89,16 @@ describe("Transfer Action", () => {
 
     it("should handle insufficient funds gracefully (ERC20)", async () => {
       // Test with unrealistic large amount that will definitely fail
-      const usdcAddress = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
 
       await expect(
         ta.transfer({
           fromChain: "sepolia" as any,
-          toAddress: usdcAddress,
+          toAddress: usdcAddressSepolia,
           amount: 1000000000n, 
           recipientAddress: receiver.address,
           token: "USDC",
           tokenDecimals: 6, // USDC Token Decimals
-          data: await getTransferData(1000000000n, receiver.address) as Hex
+          data: await getTransferCallData(1000000000n, receiver.address) as Hex
         }),
       ).rejects.toThrow();
     });
@@ -132,12 +133,11 @@ describe("Transfer Action", () => {
     });
 
     it("should handle zero amount transfers (ERC20)", async () => {
-      const usdcAddress = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
 
       await expect(
         ta.transfer({
           fromChain: "sepolia" as any,
-          toAddress: usdcAddress,
+          toAddress: usdcAddressSepolia,
           amount: BigInt(0),
           recipientAddress: receiver.address,
           token: "USDC",
@@ -150,6 +150,7 @@ describe("Transfer Action", () => {
     describe("Network-specific transfers", () => {
       it("should work with Sepolia testnet", async () => {
         const balance = await wp.getWalletBalanceForChain("sepolia");
+        console.log(balance)
         console.log(`Sepolia balance: ${balance} ETH`);
 
         if (balance && parseFloat(balance) > 0.001) {
@@ -221,24 +222,23 @@ describe("Transfer Action", () => {
     });
 
     it("should work with Base Sepolia testnet (for ERC20 - USDC)", async () => {
-      const balance = await wp.getWalletBalanceForChain("baseSepolia");
-      console.log(`Base Sepolia balance: ${balance} ETH`);
 
-      const usdcAddress = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
+      const balance = await wp.getWalletBalanceForERC20("baseSepolia", 6, usdcAddressBase);
+      console.log(`Base Sepolia balance: ${balance} USDC`);
 
       if (balance && parseFloat(balance) > 0.001) {
         const result = await ta.transfer({
           fromChain: "baseSepolia" as any,
-          toAddress: usdcAddress,
-          amount: 1n,
+          toAddress: usdcAddressBase,
+          amount: 1000000n,
           recipientAddress: receiver.address,
           token: "USDC",
           tokenDecimals: 6,
-          data: await getTransferData(0, receiver.address, 6) as Hex
+          data: await getTransferCallData(1000000n, receiver.address) as Hex
         }); // Don't forget to change the address later!
 
         expect(result.hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
-        expect(result.to).toBe(usdcAddress);
+        expect(result.to).toBe(usdcAddressBase);
         expect(result.data.startsWith('0x')).toBe(true);
         expect(result.value).toBe(0n)
       } else {
@@ -248,36 +248,34 @@ describe("Transfer Action", () => {
         await expect(
           ta.transfer({
             fromChain: "baseSepolia" as any,
-            toAddress: usdcAddress,
+            toAddress: usdcAddressBase,
             amount: BigInt(0),
             recipientAddress: receiver.address,
             token: "USDC",
             tokenDecimals: 6,
-            data: await getTransferData(BigInt(0), receiver.address, 6) as Hex
+            data: await getTransferCallData(BigInt(0), receiver.address) as Hex
           }), //Don't forget to change the address later!
         ).rejects.toThrow("Transfer failed");
       }
     });
 
     it("should work with Sepolia testnet (for ERC20 - USDC)", async () => {
-      const balance = await wp.getWalletBalanceForChain("sepolia");
-      console.log(`Sepolia balance: ${balance} ETH`);
-
-      const usdcAddress = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
+      const balance = await wp.getWalletBalanceForERC20("sepolia", 6, usdcAddressSepolia);
+      console.log(`Base Sepolia balance: ${balance} USDC`);
 
       if (balance && parseFloat(balance) > 0.001) {
         const result = await ta.transfer({
           fromChain: "sepolia" as any,
-          toAddress: usdcAddress,
-          amount: 1n,
+          toAddress: usdcAddressSepolia,
+          amount: 1000000n,
           recipientAddress: receiver.address,
           token: "USDC",
           tokenDecimals: 6,
-          data: await getTransferData(0n, receiver.address, 6) as Hex
+          data: await getTransferCallData(1000000n, receiver.address) as Hex
         }); // Don't forget to change the address later!
 
         expect(result.hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
-        expect(result.to).toBe(usdcAddress);
+        expect(result.to).toBe(usdcAddressSepolia);
         expect(result.data.startsWith('0x')).toBe(true);
         expect(result.value).toBe(0n)
       } else {
@@ -287,12 +285,12 @@ describe("Transfer Action", () => {
         await expect(
           ta.transfer({
             fromChain: "sepolia" as any,
-            toAddress: usdcAddress,
+            toAddress: usdcAddressBase,
             amount: BigInt(0),
             recipientAddress: receiver.address,
             token: "USDC",
             tokenDecimals: 6,
-            data: await getTransferData(0n, receiver.address, 6) as Hex
+            data: await getTransferCallData(0n, receiver.address, 6) as Hex
           }), //Don't forget to change the address later!
         ).rejects.toThrow("Transfer failed");
       }
@@ -320,7 +318,7 @@ describe("Transfer Action", () => {
           const result = await fundedTa.transfer({
             fromChain: "sepolia" as any,
             toAddress: receiver.address,
-            amount: parseEther("0.0001"), // 0.001 ETH
+            amount: parseEther("0.0001"), // 0.0001 ETH
             recipientAddress: "0xrecipientAddress",
             token: "ETH",
             tokenDecimals: 18,

@@ -3,7 +3,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import type { Account, Chain } from "viem";
 import { type Hex, parseEther, formatEther, encodeFunctionData } from "viem";
 
-import { ABIEncoding, buildTransferDetails, TransferAction, transferAction } from "../actions/transfer";
+import { buildTransferDetails, TransferAction, transferAction } from "../actions/transfer";
 import { WalletProvider } from "../providers/wallet";
 import { sepolia, baseSepolia, getTestChains } from "./custom-chain";
 import { IAgentRuntime, Memory, MemoryType, State } from "@elizaos/core";
@@ -27,6 +27,9 @@ const FUNDED_TEST_WALLET = process.env.FUNDED_TEST_PRIVATE_KEY; // Optional fund
 const mockCacheManager = {
   get: vi.fn().mockResolvedValue(null),
   set: vi.fn(),
+  getCache: vi.fn(),
+  setCache: vi.fn(),
+  getService: vi.fn()
 };
 
 describe("transferAction Action Test", () => {
@@ -77,6 +80,11 @@ describe("transferAction Action Test", () => {
         evaluate: vi.fn().mockResolvedValue([]),
       } as unknown as IAgentRuntime;
   
+      // Set the memory and runtime variables
+      memory = mockMemory;
+      AgentRuntime = mockRuntime 
+
+    });
   
     afterEach(() => {
       // Remove vi.clearAllTimers() as it's not needed in Bun test runner
@@ -87,18 +95,17 @@ describe("transferAction Action Test", () => {
 
         const mockState = createMockState() as State;
 
-        const transferDetails = await buildTransferDetails(mockState, mockMemory, mockRuntime, wp);
+        // Mock the composeStates
+        const transferDetails = await buildTransferDetails(mockState, memory, AgentRuntime, wp);
         console.log(transferDetails)
-        
-        
+
       })
-    })
+    });
   
     describe("USDC Token Case - Using LLMs", () => {
       it("should return a json file containing the USDC transfer information (eg, correct token decimals)", async () => {
         
       })
-    })
+    });
   
-})
 })

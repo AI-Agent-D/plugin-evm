@@ -8,7 +8,7 @@ import {
   parseKeyValueXml,
   composePromptFromState,
 } from "@elizaos/core";
-import { type Hex, encodeFunctionData, formatEther, formatUnits, getAddress, parseEther, parseUnits } from "viem";
+import { Address, type Hex, encodeFunctionData, formatEther, formatUnits, getAddress, parseEther, parseUnits, zeroAddress } from "viem";
 
 import { type WalletProvider, initWalletProvider } from "../providers/wallet";
 import { transferTemplate } from "../templates";
@@ -16,7 +16,7 @@ import type { Transaction, TransferParams } from "../types";
 import { supportedChains } from "@lifi/data-types";
 import { printer } from "prettier/doc.js";
 
-export const getTransferData = async (amountDecimals: bigint, recipientAddress: string): Promise<Hex> => {
+export const getTransferCallData = async (amount: bigint, recipientAddress: Address): Promise<Hex> => {
 
   const abi = [
     {
@@ -44,16 +44,30 @@ export const getTransferData = async (amountDecimals: bigint, recipientAddress: 
       functionName: 'transfer',
       args: [
         recipientAddress,
-        amountDecimals
+        amount
       ]
     }) 
   };
 
+export const checkTransferDetails = (transferParams: TransferParams) => {
+
+  if (transferParams.recipientAddress === zeroAddress || 
+    transferParams.toAddress === zeroAddress) {
+    throw new Error("0 Address Detected");
+  }
+
+  if (!transferParams.token.length) {
+    throw new Error("No Token Detected")
+  }
+
+  if (!transferParams.amount) {
+    throw new Error("0 transfer!")
+  }
+}
 // Exported for tests
 
-const isNativeTransfer = (transferParams: TransferParams) => {
-  return (transferParams.toAddress === transferParams.recipientAddress)
-}
+const isNativeTransfer = (transferParams: TransferParams): boolean =>  transferParams.toAddress === transferParams.recipientAddress;
+
 export class TransferAction {
   constructor(private walletProvider: WalletProvider) {}
 
@@ -126,7 +140,6 @@ export const buildTransferDetails = async (
   });
 
   const parsedXml = parseKeyValueXml(xmlResponse);
-  
 
   if (!parsedXml) {
     throw new Error(
@@ -143,8 +156,10 @@ export const buildTransferDetails = async (
     token: parsedXml.token
   } as TransferParams;
 
-  transferDetails.amount = BigInt(parseUnits(parsedXml.amount, transferDetails.tokenDecimals));
-  transferDetails.data = await getTransferData(transferDetails.amount, transferDetails.recipientAddress);
+  transferDetails.amount = parseUnits(parsedXml.amount, transferDetails.tokenDecimals);
+  transferDetails.data = await getTransferCallData(transferDetails.amount, transferDetails.recipientAddress);
+
+  checkTransferDetails(transferDetails)
 
   // Normalize chain name to lowercase to handle case sensitivity issues
   const normalizedChainName = transferDetails.fromChain.toLowerCase();

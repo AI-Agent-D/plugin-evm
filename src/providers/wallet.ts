@@ -27,6 +27,8 @@ import {
   formatUnits,
   publicActions,
   walletActions,
+  getContract,
+  getAddress
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
@@ -147,6 +149,84 @@ export class WalletProvider {
       return null;
     }
   }
+
+  async getWalletERC20Balance(
+    tokenAddress: string,
+    tokenDecimals: number,
+    account: Address,
+    client: PublicClient<HttpTransport, Chain, Account | undefined>,
+  ): Promise<string | null> {
+    try {
+      const contract = getContract({
+        address: getAddress(tokenAddress) as `0x${string}`,
+        abi: [
+          {
+            type: "function",
+            name: "balanceOf",
+            inputs: [
+              {
+                name: "account",
+                type: "address",
+                internalType: "address",
+              },
+            ],
+            outputs: [
+              {
+                name: "",
+                type: "uint256",
+                internalType: "uint256",
+              },
+            ],
+            stateMutability: "view",
+          },
+        ],
+        client: {
+          public: client as never,
+        },
+      }) as any;
+  
+      const balance = await contract.read.balanceOf([account]);
+      const balanceFormatted = formatUnits(balance, tokenDecimals);
+      elizaLogger.log(
+        "Wallet ERC 20 balance cached for chain: ",
+        client.chain.name,
+      );
+      return balanceFormatted;
+    } catch (error) {
+      console.error("Error getting wallet ERC20 balance:", error);
+      return null;
+    }
+  };
+
+  async getWalletBalanceForERC20(
+    chainName: SupportedChain,
+    tokenDecimals: number,
+    tokenAddress: string,
+  ): Promise<string | null> {
+    try {
+      const client = this.getPublicClient(chainName);
+      const balance = await this.getWalletERC20Balance(
+        tokenAddress, tokenDecimals, this.account.address, client
+      )
+      return balance
+    } catch (error) {
+      console.error(`Error getting wallet balance for ${chainName}:`, error);
+      return null;
+    }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   addChain(chain: Record<string, Chain>) {
     this.addChains(chain);
