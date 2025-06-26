@@ -29,7 +29,7 @@ import {
     settings: {
       secrets: {},
       "chains": {
-        "evm": ["base"]
+        "evm": ["sepolia"]
       },
     },
     system:

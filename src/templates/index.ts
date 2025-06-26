@@ -20,17 +20,20 @@ Fifth, go through the recent messages again and extract the recipient address (i
 
 Sixth, I want you to use the token symbol you found in the second step and deduce the number of token decimals needed for the transfer. 
 
+Seventh, I want you to look at the recentMessages and find out the blockchain that the transfer is going to be conducted in. It has to be **one** of these blockchains, whereby the '|' indicates 'or': {{supportedChains}}
+
 Respond using an XML block containing only the extracted values, whereby:
 amount: The amount found from the third step.
 toAddress: This is the address found from the fourth step.
 token: The token symbol from the second step.
-tokenDecimals: The number of token decimals you obtained, in the sixth step. (MUST BE IN INT)
+tokenDecimals: The number of token decimals you obtained, in the sixth step. 
 recipientAddress: The recipient address you extracted from the fifth step.
+fromChain: The blockchain where the transfer is conducted in the seventh step. The final answer should not contain '|' because this symbol means 'or'.
 
 All fields must be filled:
 
 <response>
-<fromChain>  {{supportedChains}}. </fromChain> <amount>string | null</amount> <toAddress>string | null</toAddress> <token>string | null</token> <tokenDecimals> int | null </tokenDecimals> <recipientAddress> str | null </recipientAddress>
+<fromChain>  string | null. </fromChain> <amount>string | null</amount> <toAddress>string | null</toAddress> <token>string | null</token> <tokenDecimals> int | null </tokenDecimals> <recipientAddress> str | null </recipientAddress>
 </response>
 
 IMPORTANT: Your response must ONLY contain the <response></response> XML block above. Do not include any text, thinking, or reasoning before or after this XML block. Start your response immediately with <response> and end with </response>.

@@ -215,19 +215,6 @@ export class WalletProvider {
     }
   }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
   addChain(chain: Record<string, Chain>) {
     this.addChains(chain);
   }

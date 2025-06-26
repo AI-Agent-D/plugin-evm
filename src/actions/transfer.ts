@@ -20,38 +20,38 @@ export const getTransferCallData = async (amount: bigint, recipientAddress: Addr
 
   const abi = [
     {
-        "constant": false,
-        "inputs": [
-            {
-                "name": "to",
-                "type": "address"
-            },
-            {
-                "name": "amount",
-                "type": "uint256"
-            }
-        ],
-        "name": "transfer",
-        "outputs": [],
-        "payable": true,
-        "stateMutability": "nonpayable",
-        "type": "function"
+      "constant": false,
+      "inputs": [
+        {
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "transfer",
+      "outputs": [],
+      "payable": true,
+      "stateMutability": "nonpayable",
+      "type": "function"
     }
-    ]
+  ]
 
-    return encodeFunctionData({
-      abi: abi,
-      functionName: 'transfer',
-      args: [
-        recipientAddress,
-        amount
-      ]
-    }) 
-  };
+  return encodeFunctionData({
+    abi: abi,
+    functionName: 'transfer',
+    args: [
+      recipientAddress,
+      amount
+    ]
+  })
+};
 
 export const checkTransferDetails = (transferParams: TransferParams) => {
 
-  if (transferParams.recipientAddress === zeroAddress || 
+  if (transferParams.recipientAddress === zeroAddress ||
     transferParams.toAddress === zeroAddress) {
     throw new Error("0 Address Detected");
   }
@@ -66,15 +66,15 @@ export const checkTransferDetails = (transferParams: TransferParams) => {
 }
 // Exported for tests
 
-const isNativeTransfer = (transferParams: TransferParams): boolean =>  transferParams.toAddress === transferParams.recipientAddress;
+const isNativeTransfer = (transferParams: TransferParams): boolean => transferParams.toAddress === transferParams.recipientAddress;
 
 export class TransferAction {
-  constructor(private walletProvider: WalletProvider) {}
+  constructor(private walletProvider: WalletProvider) { }
 
   async transfer(params: TransferParams): Promise<Transaction> {
 
     if (!params.amount) {
-        throw new Error("0 transfer!")
+      throw new Error("0 transfer!")
     }
 
     const walletClient = this.walletProvider.getWalletClient(params.fromChain);
@@ -82,7 +82,7 @@ export class TransferAction {
     if (!walletClient.account) {
       throw new Error("Wallet account is not available");
     }
-  
+
     try {
 
       const value = isNativeTransfer(params) ? params.amount : BigInt(0)
@@ -127,13 +127,15 @@ export const buildTransferDetails = async (
     })
     .join(", ");
 
-  state = await runtime.composeState(_message, ["RECENT_MESSAGES"], true);
+  state = await runtime.composeState(_message, ["RECENT_MESSAGES"], true); 
   state.supportedChains = chains.join(" | ");
 
   const context = composePromptFromState({
     state,
     template: transferTemplate,
   });
+
+  console.log(context)
 
   const xmlResponse = await runtime.useModel(ModelType.TEXT_SMALL, {
     prompt: context,
@@ -170,9 +172,9 @@ export const buildTransferDetails = async (
   if (!existingChain) {
     throw new Error(
       "The chain " +
-        transferDetails.fromChain +
-        " not configured yet. Add the chain or choose one from configured: " +
-        chains.toString(),
+      transferDetails.fromChain +
+      " not configured yet. Add the chain or choose one from configured: " +
+      chains.toString(),
     );
   }
 

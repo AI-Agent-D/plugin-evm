@@ -18,54 +18,6 @@ import {
 import { initWalletProvider } from "./wallet";
 import { type SupportedChain } from "src/types";
 
-export const getWalletERC20Balance = async (
-  tokenAddress: string,
-  tokenDecimals = 18,
-  account: Address,
-  client: PublicClient<HttpTransport, Chain, Account | undefined>,
-): Promise<string | null> => {
-  try {
-    const contract = getContract({
-      address: getAddress(tokenAddress) as `0x${string}`,
-      abi: [
-        {
-          type: "function",
-          name: "balanceOf",
-          inputs: [
-            {
-              name: "account",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [
-            {
-              name: "",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          stateMutability: "view",
-        },
-      ],
-      client: {
-        public: client as never,
-      },
-    }) as any;
-
-    const balance = await contract.read.balanceOf([account]);
-    const balanceFormatted = formatUnits(balance, tokenDecimals);
-    elizaLogger.log(
-      "Wallet ERC 20 balance cached for chain: ",
-      client.chain.name,
-    );
-    return balanceFormatted;
-  } catch (error) {
-    console.error("Error getting wallet ERC20 balance:", error);
-    return null;
-  }
-};
-
 const TOKEN_ADDRS = {
   "Arbitrum One": {
     USDC: {
@@ -98,7 +50,7 @@ export const evmWalletERC20Provider: Provider = {
           const client = walletProvider.getPublicClient(
             chain as unknown as SupportedChain,
           );
-          const balance = await getWalletERC20Balance(
+          const balance = await walletProvider.getWalletERC20Balance(
             tokenAddress,
             tokenDecimals,
             walletProvider.account.address,
