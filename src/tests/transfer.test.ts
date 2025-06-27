@@ -13,12 +13,10 @@ import {
 
 import {
   getTransferCallData,
-  buildTransferDetails,
   TransferAction,
-  transferAction,
 } from '../actions/transfer';
 import { WalletProvider } from '../providers/wallet';
-import { sepolia, baseSepolia, getTestChains } from './custom-chain';
+import { getTestChains } from './custom-chain';
 
 // Test environment - use a funded wallet private key for real testing
 const TEST_PRIVATE_KEY = process.env.TEST_PRIVATE_KEY || generatePrivateKey();

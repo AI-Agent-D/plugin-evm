@@ -12,10 +12,8 @@ import {
   Address,
   type Hex,
   encodeFunctionData,
-  formatEther,
   formatUnits,
   getAddress,
-  parseEther,
   parseUnits,
   zeroAddress,
 } from 'viem';
@@ -23,8 +21,6 @@ import {
 import { type WalletProvider, initWalletProvider } from '../providers/wallet';
 import { transferTemplate } from '../templates';
 import type { Transaction, TransferParams } from '../types';
-import { supportedChains } from '@lifi/data-types';
-import { printer } from 'prettier/doc.js';
 
 export const getTransferCallData = async (
   amount: bigint,
@@ -58,7 +54,7 @@ export const getTransferCallData = async (
   });
 };
 
-export const checkTransferDetails = (transferParams: TransferParams) => {
+export const checkTransferDetails = (transferParams: Record<string, any>) => {
   if (transferParams.recipientAddress === zeroAddress || transferParams.toAddress === zeroAddress) {
     throw new Error('0 Address Detected');
   }
@@ -140,8 +136,6 @@ export const buildTransferDetails = async (
     template: transferTemplate,
   });
 
-  console.log(context);
-
   const xmlResponse = await runtime.useModel(ModelType.TEXT_SMALL, {
     prompt: context,
   });
@@ -151,6 +145,8 @@ export const buildTransferDetails = async (
   if (!parsedXml) {
     throw new Error('Failed to parse XML response from LLM for transfer details.');
   }
+
+  checkTransferDetails(parsedXml);
 
   const transferDetails = {
     ...parsedXml,
@@ -162,12 +158,15 @@ export const buildTransferDetails = async (
   } as TransferParams;
 
   transferDetails.amount = parseUnits(parsedXml.amount, transferDetails.tokenDecimals);
-  transferDetails.data = await getTransferCallData(
+
+  if (isNativeTransfer(transferDetails)) {
+    transferDetails.data = "0x" as Hex
+  } else {
+    transferDetails.data = await getTransferCallData(
     transferDetails.amount,
     transferDetails.recipientAddress
   );
-
-  checkTransferDetails(transferDetails);
+  }
 
   // Normalize chain name to lowercase to handle case sensitivity issues
   const normalizedChainName = transferDetails.fromChain.toLowerCase();

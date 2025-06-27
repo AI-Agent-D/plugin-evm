@@ -3,59 +3,102 @@ import {
   type Provider,
   type Memory,
   type State,
+  type ProviderResult,
+  composePromptFromState,
+  ModelType,
+  parseKeyValueXml,
   elizaLogger,
 } from '@elizaos/core';
-import {
-  Account,
-  Address,
-  Chain,
-  formatUnits,
-  getAddress,
-  getContract,
-  HttpTransport,
-  PublicClient,
-} from 'viem';
 import { initWalletProvider } from './wallet';
 import { type SupportedChain } from 'src/types';
+import { searchAddressTokenTemplate } from 'src/templates';
 
-const TOKEN_ADDRS = {
-  'Arbitrum One': {
-    USDC: {
-      tokenDecimals: 6,
-      tokenAddress: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8',
-    },
-  },
-};
+interface TokenData {
+  [chain: string]: {
+  [token: string]: {
+  tokenDecimals: number;
+  tokenAddress: string;
+  };
+  };
+  }
+
+const getTokenDecimalsAddress = async(
+  runtime: IAgentRuntime,
+  _message: Memory,
+  state?: State,
+): Promise<TokenData> =>  {
+
+  // Look through all recent messages and figure out which tokens have been mentioned and on which chains.
+  // Find the token decimals and addresses.
+  // Format in the token data field.
+
+  if (!state) {
+    state = (await runtime.composeState(_message)) as State;
+  } 
+
+  const context = composePromptFromState({
+      state,
+      template: searchAddressTokenTemplate,
+    });
+  
+    const xmlResponse = await runtime.useModel(ModelType.TEXT_SMALL, {
+      ...state,
+      prompt: context,
+    });
+
+    const parsedXml = parseKeyValueXml(xmlResponse);
+
+    if (!parsedXml) {
+      throw new Error('Failed to parse XML response from LLM for transfer details.');
+    }
+
+    return parsedXml as TokenData;
+}
 
 export const evmWalletERC20Provider: Provider = {
-  async get(runtime: IAgentRuntime, _message: Memory, state?: State): Promise<string | null> {
+  name: "EVM_ERC20_TRANSFER_TOKENS",
+  async get(runtime: IAgentRuntime, _message: Memory, state: State): Promise<ProviderResult> {
     try {
       const walletProvider = await initWalletProvider(runtime);
-      const chain = walletProvider.getCurrentChain();
       const agentName = state?.agentName || 'The agent';
-      const tokenAddresses = TOKEN_ADDRS[chain.name];
+      const tokenAddresses = await getTokenDecimalsAddress(runtime, _message, state)
+      
+      let queriedChainBalances = ``
 
-      const balances = await Promise.all(
+      for (const currentChain in tokenAddresses) {
+        const chain = currentChain as unknown as SupportedChain
+
+        const balances = await Promise.all(
         Object.keys(tokenAddresses).map(async (tokenName) => {
-          const { tokenAddress, tokenDecimals } = tokenAddresses[tokenName];
+          const { tokenAddress, tokenDecimals } = tokenAddresses[tokenName].token;
 
-          console.log(`Querying balance for ${tokenName} at address ${tokenAddress}`);
+          elizaLogger.log(`Querying balance for ${tokenAddresses[tokenName]} at address ${tokenAddress}`);
 
-          const client = walletProvider.getPublicClient(chain as unknown as SupportedChain);
-          const balance = await walletProvider.getWalletERC20Balance(
-            tokenAddress,
+          const balances = await walletProvider.getWalletBalanceForERC20(
+            chain,
             tokenDecimals,
-            walletProvider.account.address,
-            client
+            tokenAddress
           );
-          return `${balance} ${tokenName}`;
+          return `${balances} ${tokenName}`;
         })
-      );
+        );
 
-      return `${agentName}'s wallet holdings consists of ${balances.join(', ')} on chain ${chain.name}`;
+        queriedChainBalances += `${agentName}'s wallet holdings consists of ${balances} on chain ${chain}`
+    }
+
+      return {
+        text: queriedChainBalances,
+        data: {},
+        values: {},
+      };
+
     } catch (error) {
       console.error('Error in EVM wallet provider:', error);
-      return null;
+      return {
+        text: 'Error getting EVM wallet provider',
+        data: {},
+        values: {},
+      };
     }
   },
 };

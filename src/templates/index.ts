@@ -1,3 +1,40 @@
+export const searchAddressTokenTemplate = `
+
+You are helping an AI agent with a blockchain transaction by reading the recent messages as shown below:
+
+{{recentMessages}}
+
+For each chain shown in the recentMessages, I want you to follow the instructions:
+
+Firstly, want you to extract the token symbols.
+
+## For this section, search online and use official sources only!
+Secondly, research online on what the tokenDecimals are for the token symbol you found on the first step.
+
+Thirdly, research online what the token address is on the chain current chain.
+## End section.
+
+Fifthly, there can be more than one chain in the recent messages, so perform the check for each chain.
+
+Return your output as a XML file as follows where the keys are:
+
+tokenSymbol: The token symbol you found in the first step.
+tokenDecimals: The token decimals you found in the second step.
+tokenAddress: The token address you find online in the third step.
+chains: One of the chains you found in the fourth step.
+
+Here is the format of the XML file:
+
+<chains>
+    <tokenSymbol>
+      <tokenDecimals>string | null</tokenDecimals>
+      <tokenAddress>string | null</tokenAddress>
+    </token>
+</chains>
+
+The above layout must remain the same for each chain you find. 
+`
+
 export const transferTemplate = `You are helping an AI agent with a blockchain transaction by reading the past messages as shown below:
 
 {{recentMessages}}

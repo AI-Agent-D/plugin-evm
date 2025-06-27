@@ -1,28 +1,24 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import type { Account, Chain } from 'viem';
-import { type Hex, parseEther, formatEther, encodeFunctionData, formatUnits } from 'viem';
+import { parseEther } from 'viem';
 
 import {
   buildTransferDetails,
   getTransferCallData,
   TransferAction,
-  transferAction,
-} from '../actions/transfer';
-import { WalletProvider } from '../providers/wallet';
-import { sepolia, baseSepolia, getTestChains } from './custom-chain';
+} from '../../actions/transfer';
+import { WalletProvider } from '../../providers/wallet';
+import { getTestChains } from '../custom-chain';
 import {
   AgentRuntime,
   IAgentRuntime,
   IDatabaseAdapter,
   Memory,
-  MemoryType,
   State,
   stringToUuid,
 } from '@elizaos/core';
-import { Plugin } from 'prettier';
-import { character } from './custom-character';
-import { build } from 'tsup';
+import { character } from '../custom-character';
 import evmPlugin from 'src';
 
 export const createMockState = (): State => {
@@ -36,6 +32,9 @@ export const createMockState = (): State => {
 // Test environment - use a funded wallet private key for real testing
 const TEST_PRIVATE_KEY = process.env.TEST_PRIVATE_KEY || generatePrivateKey();
 const FUNDED_TEST_WALLET = process.env.FUNDED_TEST_PRIVATE_KEY; // Optional funded wallet for integration tests
+const THRESHOLD = process.env.THRESHOLD;
+const NUMBER_OF_TIMES_RUN = process.env.NUMBER_OF_TIMES_RUN;
+
 
 // Mock the ICacheManager
 const mockCacheManager = {
@@ -100,11 +99,11 @@ describe('transferAction Action Test', () => {
   });
 
   describe('Native Token Case (ETH) - Using LLMs', () => {
-    it('should return a json file containing the ETH transfer information (eg, correct token decimals)', async () => {
+    it('should return a json file containing the ETH transfer information (eg, correct token decimals) on sepolia', async () => {
       const correctChain = 'sepolia';
-      const threshold = 0.95; // 95%
-      const numberOfTimesRun = 2;
       let counter = 0;
+      const numberOfTimesRun = NUMBER_OF_TIMES_RUN as unknown as number;
+      const threshold = THRESHOLD as unknown as number;
 
       const correctAnswers = {
         fromChain: correctChain,
@@ -176,9 +175,12 @@ describe('transferAction Action Test', () => {
   describe('USDC Token Case - Using LLMs', () => {
     it.only('should return a json file containing the USDC transfer information (eg, correct token decimals) on baseSepolia', async () => {
       const chain = 'baseSepolia';
-      const threshold = 0.95; // 95%
-      const numberOfTimesRun = 1;
       let counter = 0;
+      const numberOfTimesRun = NUMBER_OF_TIMES_RUN as unknown as number;
+      const threshold = THRESHOLD as unknown as number;
+
+      console.log("Here is the threshold", threshold)
+      console.log("Here is the number of times run", numberOfTimesRun)
 
       const correctAnswers = {
         fromChain: chain,
