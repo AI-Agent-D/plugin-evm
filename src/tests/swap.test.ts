@@ -35,13 +35,13 @@ describe('Swap Action', () => {
 
     testChains = getTestChains();
     const pk = TEST_PRIVATE_KEY as `0x${string}`;
-
+    
     // Initialize with Sepolia and Base Sepolia for testing
     const customChains = {
       sepolia: testChains.sepolia,
       baseSepolia: testChains.baseSepolia,
     };
-
+    
     wp = new WalletProvider(pk, mockCacheManager as any, customChains);
   });
 
@@ -104,7 +104,7 @@ describe('Swap Action', () => {
     it('should handle invalid slippage values', async () => {
       // Test that swap works without explicitly setting slippage (handled internally)
       const balance = await wp.getWalletBalanceForChain('sepolia');
-
+      
       if (balance && parseFloat(balance) < 0.001) {
         // Test insufficient balance scenario
         await expect(
@@ -166,7 +166,7 @@ describe('Swap Action', () => {
         }
       } else {
         console.warn('Skipping swap test - insufficient balance');
-
+        
         // Test the error case instead
         await expect(
           swapAction.swap({
@@ -263,7 +263,7 @@ describe('Swap Action', () => {
 
     it('should handle high slippage scenarios', async () => {
       const balance = await wp.getWalletBalanceForChain('sepolia');
-
+      
       if (balance && parseFloat(balance) > 0.001) {
         // Test with normal swap parameters - slippage is handled internally
         try {
@@ -273,7 +273,7 @@ describe('Swap Action', () => {
             toToken: SEPOLIA_TOKENS.WETH,
             amount: '0.001',
           });
-
+          
           expect(result.hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
           console.log('Swap succeeded despite potential slippage');
         } catch (error) {
@@ -289,8 +289,8 @@ describe('Swap Action', () => {
     it('should accept reasonable slippage values', () => {
       // Test internal slippage handling - this is more of a validation test
       const validAmounts = ['0.001', '0.01', '0.1', '1.0'];
-
-      validAmounts.forEach((amount) => {
+      
+      validAmounts.forEach(amount => {
         expect(parseFloat(amount)).toBeGreaterThan(0);
         expect(parseFloat(amount)).toBeLessThan(1000); // Reasonable upper bound
       });
@@ -324,7 +324,7 @@ describe('Swap Action', () => {
 const prepareChains = () => {
   const customChains: Record<string, Chain> = {};
   const chainNames = ['sepolia', 'baseSepolia'];
-
+  
   chainNames.forEach((chain) => {
     try {
       customChains[chain] = WalletProvider.genChainFromName(chain as any);

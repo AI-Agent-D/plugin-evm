@@ -1,8 +1,17 @@
-import type { IAgentRuntime, Memory, State, HandlerCallback } from '@elizaos/core';
-import { WalletProvider } from '../providers/wallet';
-import { queueProposalTemplate } from '../templates';
-import type { QueueProposalParams, SupportedChain, Transaction } from '../types';
-import governorArtifacts from '../contracts/artifacts/OZGovernor.json';
+import type {
+  IAgentRuntime,
+  Memory,
+  State,
+  HandlerCallback,
+} from "@elizaos/core";
+import { WalletProvider } from "../providers/wallet";
+import { queueProposalTemplate } from "../templates";
+import type {
+  QueueProposalParams,
+  SupportedChain,
+  Transaction,
+} from "../types";
+import governorArtifacts from "../contracts/artifacts/OZGovernor.json";
 import {
   type ByteArray,
   type Hex,
@@ -10,7 +19,7 @@ import {
   keccak256,
   stringToHex,
   type Address,
-} from 'viem';
+} from "viem";
 
 export { queueProposalTemplate };
 
@@ -30,7 +39,7 @@ export class QueueAction {
 
     const txData = encodeFunctionData({
       abi: governorArtifacts.abi,
-      functionName: 'queue',
+      functionName: "queue",
       args: [params.targets, params.values, params.calldatas, descriptionHash],
     });
 
@@ -69,8 +78,8 @@ export class QueueAction {
 }
 
 export const queueAction = {
-  name: 'queue',
-  description: 'Queue a DAO governance proposal for execution',
+  name: "queue",
+  description: "Queue a DAO governance proposal for execution",
   handler: async (
     runtime: IAgentRuntime,
     _message: Memory,
@@ -88,7 +97,7 @@ export const queueAction = {
         !options.calldatas ||
         !options.description
       ) {
-        throw new Error('Missing required parameters for queue proposal');
+        throw new Error("Missing required parameters for queue proposal");
       }
 
       // Convert options to QueueProposalParams
@@ -101,7 +110,7 @@ export const queueAction = {
         description: String(options.description),
       };
 
-      const privateKey = runtime.getSetting('EVM_PRIVATE_KEY') as `0x${string}`;
+      const privateKey = runtime.getSetting("EVM_PRIVATE_KEY") as `0x${string}`;
       const walletProvider = new WalletProvider(privateKey, runtime);
       const action = new QueueAction(walletProvider);
       return await action.queue(queueParams);
@@ -116,19 +125,19 @@ export const queueAction = {
   },
   template: queueProposalTemplate,
   validate: async (runtime: IAgentRuntime) => {
-    const privateKey = runtime.getSetting('EVM_PRIVATE_KEY');
-    return typeof privateKey === 'string' && privateKey.startsWith('0x');
+    const privateKey = runtime.getSetting("EVM_PRIVATE_KEY");
+    return typeof privateKey === "string" && privateKey.startsWith("0x");
   },
   examples: [
     [
       {
-        user: 'user',
+        user: "user",
         content: {
-          text: 'Queue proposal 123 on the governor at 0x1234567890123456789012345678901234567890 on Ethereum',
-          action: 'QUEUE_PROPOSAL',
+          text: "Queue proposal 123 on the governor at 0x1234567890123456789012345678901234567890 on Ethereum",
+          action: "QUEUE_PROPOSAL",
         },
       },
     ],
   ],
-  similes: ['QUEUE_PROPOSAL', 'GOVERNANCE_QUEUE'],
+  similes: ["QUEUE_PROPOSAL", "GOVERNANCE_QUEUE"],
 }; // TODO: add more examples
