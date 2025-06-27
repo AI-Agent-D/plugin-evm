@@ -1,17 +1,8 @@
-import type {
-  IAgentRuntime,
-  Memory,
-  State,
-  HandlerCallback,
-} from "@elizaos/core";
-import { WalletProvider } from "../providers/wallet";
-import { queueProposalTemplate } from "../templates";
-import type {
-  QueueProposalParams,
-  SupportedChain,
-  Transaction,
-} from "../types";
-import governorArtifacts from "../contracts/artifacts/OZGovernor.json";
+import type { IAgentRuntime, Memory, State, HandlerCallback } from '@elizaos/core';
+import { WalletProvider } from '../providers/wallet';
+import { queueProposalTemplate } from '../templates';
+import type { QueueProposalParams, SupportedChain, Transaction } from '../types';
+import governorArtifacts from '../contracts/artifacts/OZGovernor.json';
 import {
   type ByteArray,
   type Hex,
@@ -19,7 +10,7 @@ import {
   keccak256,
   stringToHex,
   type Address,
-} from "viem";
+} from 'viem';
 
 export { queueProposalTemplate };
 
@@ -32,14 +23,14 @@ export class QueueAction {
     const walletClient = this.walletProvider.getWalletClient(params.chain);
 
     if (!walletClient.account) {
-      throw new Error("Wallet account is not available");
+      throw new Error('Wallet account is not available');
     }
 
     const descriptionHash = keccak256(stringToHex(params.description));
 
     const txData = encodeFunctionData({
       abi: governorArtifacts.abi,
-      functionName: "queue",
+      functionName: 'queue',
       args: [params.targets, params.values, params.calldatas, descriptionHash],
     });
 
@@ -71,22 +62,21 @@ export class QueueAction {
         logs: receipt.logs,
       };
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       throw new Error(`Vote failed: ${errorMessage}`);
     }
   }
 }
 
 export const queueAction = {
-  name: "queue",
-  description: "Queue a DAO governance proposal for execution",
+  name: 'queue',
+  description: 'Queue a DAO governance proposal for execution',
   handler: async (
     runtime: IAgentRuntime,
     _message: Memory,
     _state: State,
     options: Record<string, unknown>,
-    callback?: HandlerCallback,
+    callback?: HandlerCallback
   ) => {
     try {
       // Validate required fields
@@ -98,7 +88,7 @@ export const queueAction = {
         !options.calldatas ||
         !options.description
       ) {
-        throw new Error("Missing required parameters for queue proposal");
+        throw new Error('Missing required parameters for queue proposal');
       }
 
       // Convert options to QueueProposalParams
@@ -111,14 +101,13 @@ export const queueAction = {
         description: String(options.description),
       };
 
-      const privateKey = runtime.getSetting("EVM_PRIVATE_KEY") as `0x${string}`;
+      const privateKey = runtime.getSetting('EVM_PRIVATE_KEY') as `0x${string}`;
       const walletProvider = new WalletProvider(privateKey, runtime);
       const action = new QueueAction(walletProvider);
       return await action.queue(queueParams);
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      console.error("Error in queue handler:", errorMessage);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error in queue handler:', errorMessage);
       if (callback) {
         callback({ text: `Error: ${errorMessage}` });
       }
@@ -127,19 +116,19 @@ export const queueAction = {
   },
   template: queueProposalTemplate,
   validate: async (runtime: IAgentRuntime) => {
-    const privateKey = runtime.getSetting("EVM_PRIVATE_KEY");
-    return typeof privateKey === "string" && privateKey.startsWith("0x");
+    const privateKey = runtime.getSetting('EVM_PRIVATE_KEY');
+    return typeof privateKey === 'string' && privateKey.startsWith('0x');
   },
   examples: [
     [
       {
-        user: "user",
+        user: 'user',
         content: {
-          text: "Queue proposal 123 on the governor at 0x1234567890123456789012345678901234567890 on Ethereum",
-          action: "QUEUE_PROPOSAL",
+          text: 'Queue proposal 123 on the governor at 0x1234567890123456789012345678901234567890 on Ethereum',
+          action: 'QUEUE_PROPOSAL',
         },
       },
     ],
   ],
-  similes: ["QUEUE_PROPOSAL", "GOVERNANCE_QUEUE"],
+  similes: ['QUEUE_PROPOSAL', 'GOVERNANCE_QUEUE'],
 }; // TODO: add more examples

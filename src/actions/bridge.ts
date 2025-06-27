@@ -1,16 +1,11 @@
-import type {
-  HandlerCallback,
-  IAgentRuntime,
-  Memory,
-  State,
-} from "@elizaos/core";
+import type { HandlerCallback, IAgentRuntime, Memory, State } from '@elizaos/core';
 import {
   composePromptFromState,
   ModelType,
   parseKeyValueXml,
   elizaLogger,
   logger,
-} from "@elizaos/core";
+} from '@elizaos/core';
 import {
   type ExtendedChain,
   type RouteExtended,
@@ -22,12 +17,12 @@ import {
   resumeRoute,
   getToken,
   EVM,
-} from "@lifi/sdk";
+} from '@lifi/sdk';
 
-import { parseUnits, formatUnits, parseAbi, type Address } from "viem";
-import { type WalletProvider, initWalletProvider } from "../providers/wallet";
-import { bridgeTemplate } from "../templates";
-import type { BridgeParams, Transaction } from "../types";
+import { parseUnits, formatUnits, parseAbi, type Address } from 'viem';
+import { type WalletProvider, initWalletProvider } from '../providers/wallet';
+import { bridgeTemplate } from '../templates';
+import type { BridgeParams, Transaction } from '../types';
 
 export { bridgeTemplate };
 
@@ -47,15 +42,13 @@ export class BridgeAction {
   constructor(private walletProvider: WalletProvider) {
     // Configure LiFi SDK with EVM providers - THIS IS THE KEY FIX!
     this.config = createConfig({
-      integrator: "eliza-agent",
+      integrator: 'eliza-agent',
       providers: [
         EVM({
           getWalletClient: async () => {
             // Default to first available chain if specific chain not specified
             const firstChain = Object.keys(this.walletProvider.chains)[0];
-            return this.walletProvider.getWalletClient(
-              firstChain as any,
-            ) as any;
+            return this.walletProvider.getWalletClient(firstChain as any) as any;
           },
           switchChain: async (chainId: number) => {
             logger.debug(`🔄 LiFi requesting chain switch to ${chainId}...`);
@@ -69,11 +62,11 @@ export class BridgeAction {
         id: config.id,
         name: config.name,
         key: config.name.toLowerCase(),
-        chainType: "EVM",
+        chainType: 'EVM',
         nativeToken: {
           ...config.nativeCurrency,
           chainId: config.id,
-          address: "0x0000000000000000000000000000000000000000",
+          address: '0x0000000000000000000000000000000000000000',
           coinKey: config.nativeCurrency.symbol,
         },
         metamask: {
@@ -83,7 +76,7 @@ export class BridgeAction {
           rpcUrls: [config.rpcUrls.default.http[0]],
           blockExplorerUrls: [config?.blockExplorers?.default?.url],
         },
-        diamondAddress: "0x0000000000000000000000000000000000000000",
+        diamondAddress: '0x0000000000000000000000000000000000000000',
         coin: config.nativeCurrency.symbol,
         mainnet: true,
       })) as ExtendedChain[],
@@ -97,7 +90,7 @@ export class BridgeAction {
 
   private getChainNameById(chainId: number): string {
     const chain = Object.entries(this.walletProvider.chains).find(
-      ([_, config]) => config.id === chainId,
+      ([_, config]) => config.id === chainId
     );
     if (!chain) {
       throw new Error(`Chain with ID ${chainId} not found`);
@@ -110,18 +103,15 @@ export class BridgeAction {
    */
   private async resolveTokenAddress(
     tokenSymbolOrAddress: string,
-    chainId: number,
+    chainId: number
   ): Promise<string> {
     // If it's already a valid address (starts with 0x and is 42 chars), return as is
-    if (
-      tokenSymbolOrAddress.startsWith("0x") &&
-      tokenSymbolOrAddress.length === 42
-    ) {
+    if (tokenSymbolOrAddress.startsWith('0x') && tokenSymbolOrAddress.length === 42) {
       return tokenSymbolOrAddress;
     }
 
     // If it's the zero address (native token), return as is
-    if (tokenSymbolOrAddress === "0x0000000000000000000000000000000000000000") {
+    if (tokenSymbolOrAddress === '0x0000000000000000000000000000000000000000') {
       return tokenSymbolOrAddress;
     }
 
@@ -132,7 +122,7 @@ export class BridgeAction {
     } catch (error) {
       elizaLogger.error(
         `Failed to resolve token ${tokenSymbolOrAddress} on chain ${chainId}:`,
-        error,
+        error
       );
       // If LiFi fails, return original value and let downstream handle the error
       return tokenSymbolOrAddress;
@@ -142,39 +132,28 @@ export class BridgeAction {
   /**
    * Get token decimals for proper amount parsing - works for any token
    */
-  private async getTokenDecimals(
-    tokenAddress: string,
-    chainName: string,
-  ): Promise<number> {
+  private async getTokenDecimals(tokenAddress: string, chainName: string): Promise<number> {
     const chainConfig = this.walletProvider.getChainConfigs(chainName as any);
 
     // Check if the token is the native currency (ETH, MATIC, BNB, etc.)
     if (
-      tokenAddress === "0x0000000000000000000000000000000000000000" ||
-      tokenAddress.toUpperCase() ===
-        chainConfig.nativeCurrency.symbol.toUpperCase()
+      tokenAddress === '0x0000000000000000000000000000000000000000' ||
+      tokenAddress.toUpperCase() === chainConfig.nativeCurrency.symbol.toUpperCase()
     ) {
       return chainConfig.nativeCurrency.decimals;
     }
 
     // For ERC20 tokens, read decimals from contract
     try {
-      const decimalsAbi = parseAbi([
-        "function decimals() view returns (uint8)",
-      ]);
-      const decimals = await this.walletProvider
-        .getPublicClient(chainName as any)
-        .readContract({
-          address: tokenAddress as Address,
-          abi: decimalsAbi,
-          functionName: "decimals",
-        });
+      const decimalsAbi = parseAbi(['function decimals() view returns (uint8)']);
+      const decimals = await this.walletProvider.getPublicClient(chainName as any).readContract({
+        address: tokenAddress as Address,
+        abi: decimalsAbi,
+        functionName: 'decimals',
+      });
       return decimals;
     } catch (error) {
-      elizaLogger.error(
-        `Failed to get decimals for token ${tokenAddress} on ${chainName}:`,
-        error,
-      );
+      elizaLogger.error(`Failed to get decimals for token ${tokenAddress} on ${chainName}:`, error);
       // Default to 18 decimals if we can't determine
       return 18;
     }
@@ -182,7 +161,7 @@ export class BridgeAction {
 
   private createExecutionOptions(
     routeId: string,
-    onProgress?: (status: BridgeExecutionStatus) => void,
+    onProgress?: (status: BridgeExecutionStatus) => void
   ): ExecutionOptions {
     return {
       // Gas optimization hook - modify transaction requests for better gas prices
@@ -197,16 +176,12 @@ export class BridgeAction {
           // Optimize gas price based on network conditions
           if (txRequest.gasPrice) {
             // Add 5% to ensure faster execution
-            txRequest.gasPrice =
-              (BigInt(txRequest.gasPrice) * BigInt(105)) / BigInt(100);
+            txRequest.gasPrice = (BigInt(txRequest.gasPrice) * BigInt(105)) / BigInt(100);
           }
 
           return txRequest;
         } catch (error) {
-          console.warn(
-            "⚠️ Gas optimization failed, using default values:",
-            error,
-          );
+          console.warn('⚠️ Gas optimization failed, using default values:', error);
           return txRequest;
         }
       },
@@ -218,17 +193,10 @@ export class BridgeAction {
         newToAmount: string;
       }) => {
         const { toToken, oldToAmount, newToAmount } = params;
-        const oldAmountFormatted = formatUnits(
-          BigInt(oldToAmount),
-          toToken.decimals,
-        );
-        const newAmountFormatted = formatUnits(
-          BigInt(newToAmount),
-          toToken.decimals,
-        );
+        const oldAmountFormatted = formatUnits(BigInt(oldToAmount), toToken.decimals);
+        const newAmountFormatted = formatUnits(BigInt(newToAmount), toToken.decimals);
         const priceChange =
-          ((Number(newToAmount) - Number(oldToAmount)) / Number(oldToAmount)) *
-          100;
+          ((Number(newToAmount) - Number(oldToAmount)) / Number(oldToAmount)) * 100;
 
         logger.debug(`   Exchange rate changed for ${toToken.symbol}:`);
         logger.debug(`   Old amount: ${oldAmountFormatted}`);
@@ -237,18 +205,18 @@ export class BridgeAction {
 
         // Auto-accept if change is less than 2%
         if (Math.abs(priceChange) < 2) {
-          logger.debug("✅ Auto-accepting exchange rate change (< 2%)");
+          logger.debug('✅ Auto-accepting exchange rate change (< 2%)');
           return true;
         }
 
         // For larger changes, we could implement user confirmation logic
         // For now, auto-accept changes up to 5%
         if (Math.abs(priceChange) < 5) {
-          logger.debug("⚠️ Accepting exchange rate change (< 5%)");
+          logger.debug('⚠️ Accepting exchange rate change (< 5%)');
           return true;
         }
 
-        logger.debug("❌ Rejecting exchange rate change (> 5%)");
+        logger.debug('❌ Rejecting exchange rate change (> 5%)');
         return false;
       },
 
@@ -256,9 +224,7 @@ export class BridgeAction {
       updateRouteHook: (updatedRoute: RouteExtended) => {
         const status = this.updateRouteStatus(routeId, updatedRoute);
 
-        logger.debug(
-          `📊 Route ${routeId} progress: ${status.currentStep}/${status.totalSteps}`,
-        );
+        logger.debug(`📊 Route ${routeId} progress: ${status.currentStep}/${status.totalSteps}`);
 
         // Log transaction hashes as they become available
         status.transactionHashes.forEach((hash, index) => {
@@ -275,13 +241,11 @@ export class BridgeAction {
         logger.debug(`🔄 Switching to chain ${chainId}...`);
         try {
           const chainName = this.getChainNameById(chainId);
-          const walletClient = this.walletProvider.getWalletClient(
-            chainName as any,
-          );
-          logger.debug("✅ Chain switch successful");
+          const walletClient = this.walletProvider.getWalletClient(chainName as any);
+          logger.debug('✅ Chain switch successful');
           return walletClient as any; // Type cast to resolve compatibility issues
         } catch (error) {
-          logger.error("❌ Chain switch failed:", error);
+          logger.error('❌ Chain switch failed:', error);
           throw error;
         }
       },
@@ -294,10 +258,7 @@ export class BridgeAction {
     };
   }
 
-  private updateRouteStatus(
-    routeId: string,
-    route: RouteExtended,
-  ): BridgeExecutionStatus {
+  private updateRouteStatus(routeId: string, route: RouteExtended): BridgeExecutionStatus {
     let transactionHashes: string[] = [];
     let currentStep = 0;
     let isComplete = false;
@@ -310,11 +271,11 @@ export class BridgeAction {
           if (process.txHash) {
             transactionHashes.push(process.txHash);
           }
-          if (process.status === "DONE") {
+          if (process.status === 'DONE') {
             currentStep = Math.max(currentStep, stepIndex + 1);
           }
-          if (process.status === "FAILED") {
-            error = `Step ${stepIndex + 1} failed: ${process.error || "Unknown error"}`;
+          if (process.status === 'FAILED') {
+            error = `Step ${stepIndex + 1} failed: ${process.error || 'Unknown error'}`;
           }
         });
       }
@@ -345,7 +306,7 @@ export class BridgeAction {
     tool: string,
     routeId: string,
     maxAttempts: number = 60,
-    intervalMs: number = 5000,
+    intervalMs: number = 5000
   ): Promise<BridgeExecutionStatus> {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -359,7 +320,7 @@ export class BridgeAction {
         });
 
         logger.debug(
-          `📊 Poll attempt ${attempt}/${maxAttempts}: ${status.status}${status.substatus ? ` (${status.substatus})` : ""}`,
+          `📊 Poll attempt ${attempt}/${maxAttempts}: ${status.status}${status.substatus ? ` (${status.substatus})` : ''}`
         );
 
         // Map LiFi status to our internal status
@@ -372,16 +333,14 @@ export class BridgeAction {
         let isComplete = false;
         let error: string | undefined;
 
-        if (status.status === "DONE") {
+        if (status.status === 'DONE') {
           isComplete = true;
-          logger.debug("✅ Bridge completed successfully!");
-        } else if (status.status === "FAILED") {
-          error = `Bridge failed: ${status.substatus || "Unknown error"}`;
+          logger.debug('✅ Bridge completed successfully!');
+        } else if (status.status === 'FAILED') {
+          error = `Bridge failed: ${status.substatus || 'Unknown error'}`;
           logger.debug(`❌ Bridge failed: ${error}`);
-        } else if (status.status === "PENDING") {
-          logger.debug(
-            `⏳ Bridge still pending: ${status.substatus || "Processing..."}`,
-          );
+        } else if (status.status === 'PENDING') {
+          logger.debug(`⏳ Bridge still pending: ${status.substatus || 'Processing...'}`);
         }
 
         // Update the route status
@@ -389,9 +348,7 @@ export class BridgeAction {
           ...routeStatus,
           isComplete,
           error,
-          currentStep: isComplete
-            ? routeStatus.totalSteps
-            : routeStatus.currentStep,
+          currentStep: isComplete ? routeStatus.totalSteps : routeStatus.currentStep,
         };
 
         this.activeRoutes.set(routeId, updatedStatus);
@@ -405,9 +362,7 @@ export class BridgeAction {
 
         // If we're near the end, treat it as a timeout
         if (attempt >= maxAttempts - 5) {
-          logger.debug(
-            "⏰ Status polling timed out, but transaction may still be processing...",
-          );
+          logger.debug('⏰ Status polling timed out, but transaction may still be processing...');
         }
       }
     }
@@ -423,57 +378,38 @@ export class BridgeAction {
       return timeoutStatus;
     }
 
-    throw new Error("Route status polling failed completely");
+    throw new Error('Route status polling failed completely');
   }
 
   async bridge(
     params: BridgeParams,
-    onProgress?: (status: BridgeExecutionStatus) => void,
+    onProgress?: (status: BridgeExecutionStatus) => void
   ): Promise<Transaction> {
     const walletClient = this.walletProvider.getWalletClient(params.fromChain);
     const [fromAddress] = await walletClient.getAddresses();
 
-    logger.debug("🌉 Initiating bridge operation...");
+    logger.debug('🌉 Initiating bridge operation...');
     logger.debug(`   From: ${params.fromChain} → To: ${params.toChain}`);
     logger.debug(`   Amount: ${params.amount} tokens`);
 
     // Resolve token symbols to addresses first
-    const fromChainConfig = this.walletProvider.getChainConfigs(
-      params.fromChain,
-    );
+    const fromChainConfig = this.walletProvider.getChainConfigs(params.fromChain);
     const toChainConfig = this.walletProvider.getChainConfigs(params.toChain);
 
-    const resolvedFromToken = await this.resolveTokenAddress(
-      params.fromToken,
-      fromChainConfig.id,
-    );
-    const resolvedToToken = await this.resolveTokenAddress(
-      params.toToken,
-      toChainConfig.id,
-    );
+    const resolvedFromToken = await this.resolveTokenAddress(params.fromToken, fromChainConfig.id);
+    const resolvedToToken = await this.resolveTokenAddress(params.toToken, toChainConfig.id);
 
     logger.debug(`🔍 Resolved tokens:`);
-    logger.debug(
-      `   ${params.fromToken} on ${params.fromChain} → ${resolvedFromToken}`,
-    );
-    logger.debug(
-      `   ${params.toToken} on ${params.toChain} → ${resolvedToToken}`,
-    );
+    logger.debug(`   ${params.fromToken} on ${params.fromChain} → ${resolvedFromToken}`);
+    logger.debug(`   ${params.toToken} on ${params.toChain} → ${resolvedToToken}`);
 
     // Get token decimals for proper amount parsing - THIS IS THE KEY FIX!
-    const fromTokenDecimals = await this.getTokenDecimals(
-      resolvedFromToken,
-      params.fromChain,
-    );
-    logger.debug(
-      `🔢 Token decimals: ${fromTokenDecimals} for ${params.fromToken}`,
-    );
+    const fromTokenDecimals = await this.getTokenDecimals(resolvedFromToken, params.fromChain);
+    logger.debug(`🔢 Token decimals: ${fromTokenDecimals} for ${params.fromToken}`);
 
     // Parse amount with correct decimals (not hardcoded 18!)
     const fromAmountParsed = parseUnits(params.amount, fromTokenDecimals);
-    logger.debug(
-      `💰 Parsed amount: ${params.amount} → ${fromAmountParsed.toString()}`,
-    );
+    logger.debug(`💰 Parsed amount: ${params.amount} → ${fromAmountParsed.toString()}`);
 
     // Get optimal routes with latest 2025 SDK
     const routesResult = await getRoutes({
@@ -485,7 +421,7 @@ export class BridgeAction {
       fromAddress: fromAddress,
       toAddress: params.toAddress || fromAddress,
       options: {
-        order: "RECOMMENDED", // Use recommended routing for best optimization
+        order: 'RECOMMENDED', // Use recommended routing for best optimization
         slippage: 0.005, // 0.5% slippage
         maxPriceImpact: 0.4, // 40% max price impact
         allowSwitchChain: true,
@@ -494,7 +430,7 @@ export class BridgeAction {
 
     if (!routesResult.routes.length) {
       throw new Error(
-        `No bridge routes found for ${params.fromToken} (${resolvedFromToken}) on ${params.fromChain} to ${params.toToken} (${resolvedToToken}) on ${params.toChain}. Please verify the token exists on both chains or try a different token pair.`,
+        `No bridge routes found for ${params.fromToken} (${resolvedFromToken}) on ${params.fromChain} to ${params.toToken} (${resolvedToToken}) on ${params.toChain}. Please verify the token exists on both chains or try a different token pair.`
       );
     }
 
@@ -503,13 +439,9 @@ export class BridgeAction {
     const routeId = `bridge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     logger.debug(`📋 Selected route ${routeId}:`);
-    logger.debug(
-      `   Gas cost: ${(selectedRoute as any).gasCostUSD || "Unknown"} USD`,
-    );
+    logger.debug(`   Gas cost: ${(selectedRoute as any).gasCostUSD || 'Unknown'} USD`);
     logger.debug(`   Steps: ${selectedRoute.steps.length}`);
-    logger.debug(
-      `   Tools: ${selectedRoute.steps.map((s) => s.tool).join(" → ")}`,
-    );
+    logger.debug(`   Tools: ${selectedRoute.steps.map((s) => s.tool).join(' → ')}`);
 
     try {
       // Execute route with advanced options and monitoring - but NO PROGRESS CALLBACK TO PREVENT LOOP!
@@ -518,19 +450,17 @@ export class BridgeAction {
 
       // Get the source chain transaction hash for status monitoring
       const sourceSteps = executedRoute.steps.filter((step) =>
-        step.execution?.process?.some((p) => p.txHash),
+        step.execution?.process?.some((p) => p.txHash)
       );
 
       if (!sourceSteps.length) {
-        throw new Error("No transaction hashes found in executed route");
+        throw new Error('No transaction hashes found in executed route');
       }
 
       // Get the main transaction hash from the source chain
-      const mainTxHash = sourceSteps[0].execution?.process?.find(
-        (p) => p.txHash,
-      )?.txHash;
+      const mainTxHash = sourceSteps[0].execution?.process?.find((p) => p.txHash)?.txHash;
       if (!mainTxHash) {
-        throw new Error("No transaction hash found in route execution");
+        throw new Error('No transaction hash found in route execution');
       }
 
       logger.debug(`🔗 Source transaction: ${mainTxHash}`);
@@ -545,7 +475,7 @@ export class BridgeAction {
         fromChainConfig.id,
         toChainConfig.id,
         bridgeTool,
-        routeId,
+        routeId
       );
 
       // Call progress callback one final time with completion status
@@ -559,12 +489,12 @@ export class BridgeAction {
 
       if (!finalStatus.isComplete) {
         logger.debug(
-          "⚠️ Bridge execution may still be in progress. Check destination chain manually.",
+          '⚠️ Bridge execution may still be in progress. Check destination chain manually.'
         );
         // Don't throw error - the source transaction succeeded
       }
 
-      logger.debug("✅ Bridge initiated successfully!");
+      logger.debug('✅ Bridge initiated successfully!');
       logger.debug(`   Source transaction: ${mainTxHash}`);
       logger.debug(`   Monitor completion on destination chain`);
 
@@ -576,7 +506,7 @@ export class BridgeAction {
         chainId: toChainConfig.id,
       };
     } catch (error) {
-      console.error("❌ Bridge execution failed:", error);
+      console.error('❌ Bridge execution failed:', error);
 
       // Try to get more details about the failure
       const status = this.activeRoutes.get(routeId);
@@ -592,12 +522,7 @@ export class BridgeAction {
   }
 
   // Get status of a specific transaction
-  async getTransactionStatus(
-    txHash: string,
-    fromChainId: number,
-    toChainId: number,
-    tool: string,
-  ) {
+  async getTransactionStatus(txHash: string, fromChainId: number, toChainId: number, tool: string) {
     try {
       const status = await getStatus({
         txHash,
@@ -607,20 +532,17 @@ export class BridgeAction {
       });
       return status;
     } catch (error) {
-      console.error("Failed to get transaction status:", error);
+      console.error('Failed to get transaction status:', error);
       throw error;
     }
   }
 
   // Resume a failed or interrupted bridge operation
-  async resumeBridge(
-    route: RouteExtended,
-    onProgress?: (status: BridgeExecutionStatus) => void,
-  ) {
+  async resumeBridge(route: RouteExtended, onProgress?: (status: BridgeExecutionStatus) => void) {
     const routeId = `resume_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const executionOptions = this.createExecutionOptions(routeId, onProgress);
 
-    logger.debug("🔄 Resuming bridge operation...");
+    logger.debug('🔄 Resuming bridge operation...');
 
     try {
       const resumedRoute = await resumeRoute(route, executionOptions);
@@ -640,19 +562,19 @@ export class BridgeAction {
 const buildBridgeDetails = async (
   state: State,
   runtime: IAgentRuntime,
-  wp: WalletProvider,
+  wp: WalletProvider
 ): Promise<BridgeParams> => {
   const chains = wp.getSupportedChains();
 
   // Add balances to state for better context in template
   const balances = await wp.getWalletBalances();
-  state.supportedChains = chains.join(" | ");
+  state.supportedChains = chains.join(' | ');
   state.chainBalances = Object.entries(balances)
     .map(([chain, balance]) => {
       const chainConfig = wp.getChainConfigs(chain as any);
       return `${chain}: ${balance} ${chainConfig.nativeCurrency.symbol}`;
     })
-    .join(", ");
+    .join(', ');
 
   // Compose bridge context
   const bridgeContext = composePromptFromState({
@@ -666,7 +588,7 @@ const buildBridgeDetails = async (
 
   const content = parseKeyValueXml(xmlResponse) as any;
 
-  logger.debug("###### XML RESPONSE", xmlResponse);
+  logger.debug('###### XML RESPONSE', xmlResponse);
 
   // Validate chains exist
   const fromChain = content.fromChain;
@@ -678,13 +600,13 @@ const buildBridgeDetails = async (
 
   if (!wp.chains[normalizedFromChain]) {
     throw new Error(
-      `Source chain ${fromChain} not configured. Available chains: ${chains.join(", ")}`,
+      `Source chain ${fromChain} not configured. Available chains: ${chains.join(', ')}`
     );
   }
 
   if (!wp.chains[normalizedToChain]) {
     throw new Error(
-      `Destination chain ${toChain} not configured. Available chains: ${chains.join(", ")}`,
+      `Destination chain ${toChain} not configured. Available chains: ${chains.join(', ')}`
     );
   }
 
@@ -697,52 +619,44 @@ const buildBridgeDetails = async (
     amount: content.amount,
   };
 
-  logger.debug("###### BRIDGE OPTIONS", bridgeOptions);
+  logger.debug('###### BRIDGE OPTIONS', bridgeOptions);
 
   return bridgeOptions;
 };
 
 export const bridgeAction = {
-  name: "EVM_BRIDGE_TOKENS",
+  name: 'EVM_BRIDGE_TOKENS',
   description:
-    "Bridge tokens between different chains with gas optimization and advanced monitoring",
+    'Bridge tokens between different chains with gas optimization and advanced monitoring',
   handler: async (
     runtime: IAgentRuntime,
     _message: Memory,
     state?: State,
     _options?: Record<string, unknown>,
-    callback?: HandlerCallback,
+    callback?: HandlerCallback
   ) => {
     const walletProvider = await initWalletProvider(runtime);
     const action = new BridgeAction(walletProvider);
 
     if (!state) {
-      state = await runtime.composeState(_message, ["RECENT_MESSAGES"], true);
+      state = await runtime.composeState(_message, ['RECENT_MESSAGES'], true);
     }
 
     try {
       // Get bridge parameters
-      const bridgeOptions = await buildBridgeDetails(
-        state,
-        runtime,
-        walletProvider,
-      );
+      const bridgeOptions = await buildBridgeDetails(state, runtime, walletProvider);
 
-      logger.debug("###### BRIDGE OPTIONS", bridgeOptions);
+      logger.debug('###### BRIDGE OPTIONS', bridgeOptions);
 
       // Execute bridge with progress monitoring
       const bridgeResp = await action.bridge(bridgeOptions, (status) => {
-        logger.debug(
-          `🔄 Bridge progress: ${status.currentStep}/${status.totalSteps}`,
-        );
+        logger.debug(`🔄 Bridge progress: ${status.currentStep}/${status.totalSteps}`);
         if (status.transactionHashes.length > 0) {
-          logger.debug(
-            `📝 Recent transactions: ${status.transactionHashes.slice(-2).join(", ")}`,
-          );
+          logger.debug(`📝 Recent transactions: ${status.transactionHashes.slice(-2).join(', ')}`);
         }
       });
 
-      logger.debug("###### BRIDGE RESP", bridgeResp);
+      logger.debug('###### BRIDGE RESP', bridgeResp);
       if (callback) {
         callback({
           text: `✅ Successfully bridged ${bridgeOptions.amount} tokens from ${bridgeOptions.fromChain} to ${bridgeOptions.toChain}\n\n🔗 Transaction Hash: ${bridgeResp.hash}\n⛽ Gas optimized and monitored throughout the process`,
@@ -760,14 +674,14 @@ export const bridgeAction = {
       return true;
     } catch (error) {
       console.error(
-        "Error in bridge handler:",
-        error instanceof Error ? error.message : "Unknown error",
+        'Error in bridge handler:',
+        error instanceof Error ? error.message : 'Unknown error'
       );
       if (callback) {
         callback({
-          text: `❌ Bridge failed: ${error instanceof Error ? error.message : "Unknown error"}\n\nPlease check your balance, network connectivity, and try again.`,
+          text: `❌ Bridge failed: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease check your balance, network connectivity, and try again.`,
           content: {
-            error: error instanceof Error ? error.message : "Unknown error",
+            error: error instanceof Error ? error.message : 'Unknown error',
             success: false,
           },
         });
@@ -777,27 +691,22 @@ export const bridgeAction = {
   },
   template: bridgeTemplate,
   validate: async (runtime: IAgentRuntime) => {
-    const privateKey = runtime.getSetting("EVM_PRIVATE_KEY");
-    return typeof privateKey === "string" && privateKey.startsWith("0x");
+    const privateKey = runtime.getSetting('EVM_PRIVATE_KEY');
+    return typeof privateKey === 'string' && privateKey.startsWith('0x');
   },
   examples: [
     [
       {
-        name: "user",
-        user: "user",
+        name: 'user',
+        user: 'user',
         content: {
-          text: "Bridge 1 ETH from Ethereum to Base with gas optimization",
-          action: "CROSS_CHAIN_TRANSFER",
+          text: 'Bridge 1 ETH from Ethereum to Base with gas optimization',
+          action: 'CROSS_CHAIN_TRANSFER',
         },
       },
     ],
   ],
-  similes: [
-    "CROSS_CHAIN_TRANSFER",
-    "CHAIN_BRIDGE",
-    "MOVE_CROSS_CHAIN",
-    "BRIDGE_TOKENS",
-  ],
+  similes: ['CROSS_CHAIN_TRANSFER', 'CHAIN_BRIDGE', 'MOVE_CROSS_CHAIN', 'BRIDGE_TOKENS'],
 };
 
 /**
@@ -808,7 +717,7 @@ export async function checkBridgeStatus(
   txHash: string,
   fromChainId: number,
   toChainId: number,
-  tool: string = "stargateV2Bus",
+  tool: string = 'stargateV2Bus'
 ) {
   try {
     logger.debug(`🔍 Checking bridge status for transaction: ${txHash}`);
@@ -823,19 +732,19 @@ export async function checkBridgeStatus(
     });
 
     logger.debug(
-      `📊 Bridge Status: ${status.status}${status.substatus ? ` (${status.substatus})` : ""}`,
+      `📊 Bridge Status: ${status.status}${status.substatus ? ` (${status.substatus})` : ''}`
     );
 
     return {
       status: status.status,
       substatus: status.substatus,
-      isComplete: status.status === "DONE",
-      isFailed: status.status === "FAILED",
-      isPending: status.status === "PENDING",
-      error: status.status === "FAILED" ? status.substatus : undefined,
+      isComplete: status.status === 'DONE',
+      isFailed: status.status === 'FAILED',
+      isPending: status.status === 'PENDING',
+      error: status.status === 'FAILED' ? status.substatus : undefined,
     };
   } catch (error) {
-    console.error("❌ Failed to check bridge status:", error);
+    console.error('❌ Failed to check bridge status:', error);
     throw error;
   }
 }

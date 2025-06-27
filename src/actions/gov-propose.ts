@@ -1,23 +1,9 @@
-import type {
-  IAgentRuntime,
-  Memory,
-  State,
-  HandlerCallback,
-} from "@elizaos/core";
-import { WalletProvider } from "../providers/wallet";
-import { proposeTemplate } from "../templates";
-import type {
-  ProposeProposalParams,
-  SupportedChain,
-  Transaction,
-} from "../types";
-import governorArtifacts from "../contracts/artifacts/OZGovernor.json";
-import {
-  type ByteArray,
-  type Hex,
-  encodeFunctionData,
-  type Address,
-} from "viem";
+import type { IAgentRuntime, Memory, State, HandlerCallback } from '@elizaos/core';
+import { WalletProvider } from '../providers/wallet';
+import { proposeTemplate } from '../templates';
+import type { ProposeProposalParams, SupportedChain, Transaction } from '../types';
+import governorArtifacts from '../contracts/artifacts/OZGovernor.json';
+import { type ByteArray, type Hex, encodeFunctionData, type Address } from 'viem';
 
 export { proposeTemplate };
 
@@ -30,18 +16,13 @@ export class ProposeAction {
     const walletClient = this.walletProvider.getWalletClient(params.chain);
 
     if (!walletClient.account) {
-      throw new Error("Wallet account is not available");
+      throw new Error('Wallet account is not available');
     }
 
     const txData = encodeFunctionData({
       abi: governorArtifacts.abi,
-      functionName: "propose",
-      args: [
-        params.targets,
-        params.values,
-        params.calldatas,
-        params.description,
-      ],
+      functionName: 'propose',
+      args: [params.targets, params.values, params.calldatas, params.description],
     });
 
     try {
@@ -72,22 +53,21 @@ export class ProposeAction {
         logs: receipt.logs,
       };
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       throw new Error(`Vote failed: ${errorMessage}`);
     }
   }
 }
 
 export const proposeAction = {
-  name: "propose",
-  description: "Execute a DAO governance proposal",
+  name: 'propose',
+  description: 'Execute a DAO governance proposal',
   handler: async (
     runtime: IAgentRuntime,
     _message: Memory,
     _state: State,
     options: Record<string, unknown>,
-    callback?: HandlerCallback,
+    callback?: HandlerCallback
   ) => {
     try {
       // Validate required fields
@@ -99,7 +79,7 @@ export const proposeAction = {
         !options.calldatas ||
         !options.description
       ) {
-        throw new Error("Missing required parameters for proposal");
+        throw new Error('Missing required parameters for proposal');
       }
 
       // Convert options to ProposeProposalParams
@@ -112,14 +92,13 @@ export const proposeAction = {
         description: String(options.description),
       };
 
-      const privateKey = runtime.getSetting("EVM_PRIVATE_KEY") as `0x${string}`;
+      const privateKey = runtime.getSetting('EVM_PRIVATE_KEY') as `0x${string}`;
       const walletProvider = new WalletProvider(privateKey, runtime);
       const action = new ProposeAction(walletProvider);
       return await action.propose(proposeParams);
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      console.error("Error in propose handler:", errorMessage);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error in propose handler:', errorMessage);
       if (callback) {
         callback({ text: `Error: ${errorMessage}` });
       }
@@ -128,19 +107,19 @@ export const proposeAction = {
   },
   template: proposeTemplate,
   validate: async (runtime: IAgentRuntime) => {
-    const privateKey = runtime.getSetting("EVM_PRIVATE_KEY");
-    return typeof privateKey === "string" && privateKey.startsWith("0x");
+    const privateKey = runtime.getSetting('EVM_PRIVATE_KEY');
+    return typeof privateKey === 'string' && privateKey.startsWith('0x');
   },
   examples: [
     [
       {
-        user: "user",
+        user: 'user',
         content: {
-          text: "Propose transferring 1e18 tokens on the governor at 0x1234567890123456789012345678901234567890 on Ethereum",
-          action: "PROPOSE",
+          text: 'Propose transferring 1e18 tokens on the governor at 0x1234567890123456789012345678901234567890 on Ethereum',
+          action: 'PROPOSE',
         },
       },
     ],
   ],
-  similes: ["PROPOSE", "GOVERNANCE_PROPOSE"],
+  similes: ['PROPOSE', 'GOVERNANCE_PROPOSE'],
 }; // TODO: add more examples

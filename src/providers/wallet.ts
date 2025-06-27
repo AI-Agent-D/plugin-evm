@@ -1,4 +1,4 @@
-import * as path from "node:path";
+import * as path from 'node:path';
 import {
   type IAgentRuntime,
   type Memory,
@@ -8,7 +8,7 @@ import {
   elizaLogger,
   TEEMode,
   ServiceType,
-} from "@elizaos/core";
+} from '@elizaos/core';
 import type {
   Account,
   Address,
@@ -18,7 +18,7 @@ import type {
   PublicClient,
   TestClient,
   WalletClient,
-} from "viem";
+} from 'viem';
 import {
   http,
   createPublicClient,
@@ -28,23 +28,23 @@ import {
   publicActions,
   walletActions,
   getContract,
-  getAddress
-} from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import * as viemChains from "viem/chains";
+  getAddress,
+} from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import * as viemChains from 'viem/chains';
 
-import { EVM_SERVICE_NAME } from "../constants";
-import type { SupportedChain } from "../types";
+import { EVM_SERVICE_NAME } from '../constants';
+import type { SupportedChain } from '../types';
 
 export class WalletProvider {
-  private cacheKey = "evm/wallet";
+  private cacheKey = 'evm/wallet';
   chains: Record<string, Chain> = {};
   account!: PrivateKeyAccount;
   runtime: IAgentRuntime;
   constructor(
     accountOrPrivateKey: PrivateKeyAccount | `0x${string}`,
     runtime: IAgentRuntime,
-    chains?: Record<string, Chain>,
+    chains?: Record<string, Chain>
   ) {
     this.setAccount(accountOrPrivateKey);
     if (chains) {
@@ -58,7 +58,7 @@ export class WalletProvider {
   }
 
   getPublicClient(
-    chainName: SupportedChain,
+    chainName: SupportedChain
   ): PublicClient<HttpTransport, Chain, Account | undefined> {
     const transport = this.createHttpTransport(chainName);
 
@@ -84,7 +84,7 @@ export class WalletProvider {
   getTestClient(): TestClient {
     return createTestClient({
       chain: viemChains.hardhat,
-      mode: "hardhat",
+      mode: 'hardhat',
       transport: http(),
     })
       .extend(publicActions)
@@ -106,9 +106,8 @@ export class WalletProvider {
   }
 
   async getWalletBalances(): Promise<Record<SupportedChain, string>> {
-    const cacheKey = path.join(this.cacheKey, "walletBalances");
-    const cachedData =
-      await this.runtime.getCache<Record<SupportedChain, string>>(cacheKey);
+    const cacheKey = path.join(this.cacheKey, 'walletBalances');
+    const cachedData = await this.runtime.getCache<Record<SupportedChain, string>>(cacheKey);
     if (cachedData) {
       elizaLogger.log(`Returning cached wallet balances`);
       return cachedData;
@@ -127,17 +126,15 @@ export class WalletProvider {
         } catch (error) {
           elizaLogger.error(`Error getting balance for ${chainName}:`, error);
         }
-      }),
+      })
     );
 
     await this.runtime.setCache(cacheKey, balances);
-    elizaLogger.log("Wallet balances cached");
+    elizaLogger.log('Wallet balances cached');
     return balances;
   }
 
-  async getWalletBalanceForChain(
-    chainName: SupportedChain,
-  ): Promise<string | null> {
+  async getWalletBalanceForChain(chainName: SupportedChain): Promise<string | null> {
     try {
       const client = this.getPublicClient(chainName);
       const balance = await client.getBalance({
@@ -154,61 +151,61 @@ export class WalletProvider {
     tokenAddress: string,
     tokenDecimals: number,
     account: Address,
-    client: PublicClient<HttpTransport, Chain, Account | undefined>,
+    client: PublicClient<HttpTransport, Chain, Account | undefined>
   ): Promise<string | null> {
     try {
       const contract = getContract({
         address: getAddress(tokenAddress) as `0x${string}`,
         abi: [
           {
-            type: "function",
-            name: "balanceOf",
+            type: 'function',
+            name: 'balanceOf',
             inputs: [
               {
-                name: "account",
-                type: "address",
-                internalType: "address",
+                name: 'account',
+                type: 'address',
+                internalType: 'address',
               },
             ],
             outputs: [
               {
-                name: "",
-                type: "uint256",
-                internalType: "uint256",
+                name: '',
+                type: 'uint256',
+                internalType: 'uint256',
               },
             ],
-            stateMutability: "view",
+            stateMutability: 'view',
           },
         ],
         client: {
           public: client as never,
         },
       }) as any;
-  
+
       const balance = await contract.read.balanceOf([account]);
       const balanceFormatted = formatUnits(balance, tokenDecimals);
-      elizaLogger.log(
-        "Wallet ERC 20 balance cached for chain: ",
-        client.chain.name,
-      );
+      elizaLogger.log('Wallet ERC 20 balance cached for chain: ', client.chain.name);
       return balanceFormatted;
     } catch (error) {
-      console.error("Error getting wallet ERC20 balance:", error);
+      console.error('Error getting wallet ERC20 balance:', error);
       return null;
     }
-  };
+  }
 
   async getWalletBalanceForERC20(
     chainName: SupportedChain,
     tokenDecimals: number,
-    tokenAddress: string,
+    tokenAddress: string
   ): Promise<string | null> {
     try {
       const client = this.getPublicClient(chainName);
       const balance = await this.getWalletERC20Balance(
-        tokenAddress, tokenDecimals, this.account.address, client
-      )
-      return balance
+        tokenAddress,
+        tokenDecimals,
+        this.account.address,
+        client
+      );
+      return balance;
     } catch (error) {
       console.error(`Error getting wallet balance for ${chainName}:`, error);
       return null;
@@ -219,10 +216,8 @@ export class WalletProvider {
     this.addChains(chain);
   }
 
-  private setAccount = (
-    accountOrPrivateKey: PrivateKeyAccount | `0x${string}`,
-  ) => {
-    if (typeof accountOrPrivateKey === "string") {
+  private setAccount = (accountOrPrivateKey: PrivateKeyAccount | `0x${string}`) => {
+    if (typeof accountOrPrivateKey === 'string') {
       this.account = privateKeyToAccount(accountOrPrivateKey);
     } else {
       this.account = accountOrPrivateKey;
@@ -249,14 +244,11 @@ export class WalletProvider {
     return http(chain.rpcUrls.default.http[0]);
   };
 
-  static genChainFromName(
-    chainName: string,
-    customRpcUrl?: string | null,
-  ): Chain {
+  static genChainFromName(chainName: string, customRpcUrl?: string | null): Chain {
     const baseChain = (viemChains as any)[chainName];
 
     if (!baseChain?.id) {
-      throw new Error("Invalid chain name");
+      throw new Error('Invalid chain name');
     }
 
     const viemChain: Chain = customRpcUrl
@@ -275,21 +267,15 @@ export class WalletProvider {
   }
 }
 
-const genChainsFromRuntime = (
-  runtime: IAgentRuntime,
-): Record<string, Chain> => {
+const genChainsFromRuntime = (runtime: IAgentRuntime): Record<string, Chain> => {
   // Get chains from settings - ONLY use configured chains
-  const configuredChains =
-    (runtime?.character?.settings?.chains?.evm as SupportedChain[]) || [];
+  const configuredChains = (runtime?.character?.settings?.chains?.evm as SupportedChain[]) || [];
 
   // If no chains are configured, default to mainnet and base
-  const chainsToUse =
-    configuredChains.length > 0 ? configuredChains : ["mainnet", "base"];
+  const chainsToUse = configuredChains.length > 0 ? configuredChains : ['mainnet', 'base'];
 
   if (!configuredChains.length) {
-    elizaLogger.warn(
-      "No EVM chains configured in settings, defaulting to mainnet and base",
-    );
+    elizaLogger.warn('No EVM chains configured in settings, defaulting to mainnet and base');
   }
 
   const chains: Record<string, Chain> = {};
@@ -297,9 +283,7 @@ const genChainsFromRuntime = (
   for (const chainName of chainsToUse) {
     try {
       // Try to get RPC URL from settings using different formats
-      let rpcUrl = runtime.getSetting(
-        `ETHEREUM_PROVIDER_${chainName.toUpperCase()}`,
-      );
+      let rpcUrl = runtime.getSetting(`ETHEREUM_PROVIDER_${chainName.toUpperCase()}`);
 
       if (!rpcUrl) {
         rpcUrl = runtime.getSetting(`EVM_PROVIDER_${chainName.toUpperCase()}`);
@@ -307,9 +291,7 @@ const genChainsFromRuntime = (
 
       // Skip chains that don't exist in viem
       if (!(viemChains as any)[chainName]) {
-        elizaLogger.warn(
-          `Chain ${chainName} not found in viem chains, skipping`,
-        );
+        elizaLogger.warn(`Chain ${chainName} not found in viem chains, skipping`);
         continue;
       }
 
@@ -325,22 +307,22 @@ const genChainsFromRuntime = (
 };
 
 export const initWalletProvider = async (runtime: IAgentRuntime) => {
-  const teeMode = runtime.getSetting("TEE_MODE") || TEEMode.OFF;
+  const teeMode = runtime.getSetting('TEE_MODE') || TEEMode.OFF;
 
   const chains = genChainsFromRuntime(runtime);
 
   if (teeMode !== TEEMode.OFF) {
-    const walletSecretSalt = runtime.getSetting("WALLET_SECRET_SALT");
+    const walletSecretSalt = runtime.getSetting('WALLET_SECRET_SALT');
     if (!walletSecretSalt) {
-      throw new Error("WALLET_SECRET_SALT required when TEE_MODE is enabled");
+      throw new Error('WALLET_SECRET_SALT required when TEE_MODE is enabled');
     }
 
     // Return a lazy wallet provider that will initialize the TEE wallet on first use
     return new LazyTeeWalletProvider(runtime, walletSecretSalt, chains);
   }
-  const privateKey = runtime.getSetting("EVM_PRIVATE_KEY") as `0x${string}`;
+  const privateKey = runtime.getSetting('EVM_PRIVATE_KEY') as `0x${string}`;
   if (!privateKey) {
-    throw new Error("EVM_PRIVATE_KEY is missing");
+    throw new Error('EVM_PRIVATE_KEY is missing');
   }
   return new WalletProvider(privateKey, runtime, chains);
 };
@@ -351,16 +333,12 @@ class LazyTeeWalletProvider extends WalletProvider {
   private initPromise: Promise<void> | null = null;
   private walletSecretSalt: string;
 
-  constructor(
-    runtime: IAgentRuntime,
-    walletSecretSalt: string,
-    chains: Record<string, Chain>,
-  ) {
+  constructor(runtime: IAgentRuntime, walletSecretSalt: string, chains: Record<string, Chain>) {
     // Initialize with a dummy account that will be replaced
     super(
-      "0x0000000000000000000000000000000000000000000000000000000000000001" as `0x${string}`,
+      '0x0000000000000000000000000000000000000000000000000000000000000001' as `0x${string}`,
       runtime,
-      chains,
+      chains
     );
     this.walletSecretSalt = walletSecretSalt;
   }
@@ -381,19 +359,19 @@ class LazyTeeWalletProvider extends WalletProvider {
 
     if (!teeService) {
       throw new Error(
-        "TEE service not found - ensure TEE plugin is registered before using TEE-dependent features",
+        'TEE service not found - ensure TEE plugin is registered before using TEE-dependent features'
       );
     }
 
-    if (typeof (teeService as any).deriveEcdsaKeypair !== "function") {
-      throw new Error(
-        "TEE service does not implement deriveEcdsaKeypair method",
-      );
+    if (typeof (teeService as any).deriveEcdsaKeypair !== 'function') {
+      throw new Error('TEE service does not implement deriveEcdsaKeypair method');
     }
 
-    const { keypair, attestation } = await (
-      teeService as any
-    ).deriveEcdsaKeypair(this.walletSecretSalt, "evm", this.runtime.agentId);
+    const { keypair, attestation } = await (teeService as any).deriveEcdsaKeypair(
+      this.walletSecretSalt,
+      'evm',
+      this.runtime.agentId
+    );
 
     this.teeWallet = new WalletProvider(keypair, this.runtime, this.chains);
 
@@ -405,14 +383,14 @@ class LazyTeeWalletProvider extends WalletProvider {
   getAddress(): Address {
     if (!this.teeWallet) {
       throw new Error(
-        "TEE wallet not initialized yet. Ensure async operations complete before using synchronous methods.",
+        'TEE wallet not initialized yet. Ensure async operations complete before using synchronous methods.'
       );
     }
     return this.teeWallet.getAddress();
   }
 
   getPublicClient(
-    chainName: SupportedChain,
+    chainName: SupportedChain
   ): PublicClient<HttpTransport, Chain, Account | undefined> {
     if (!this.teeWallet) {
       // Public client doesn't need the account, so we can return it without TEE initialization
@@ -424,7 +402,7 @@ class LazyTeeWalletProvider extends WalletProvider {
   getWalletClient(chainName: SupportedChain): WalletClient {
     if (!this.teeWallet) {
       throw new Error(
-        "TEE wallet not initialized yet. Ensure async operations complete before using wallet client.",
+        'TEE wallet not initialized yet. Ensure async operations complete before using wallet client.'
       );
     }
     return this.teeWallet.getWalletClient(chainName);
@@ -435,48 +413,38 @@ class LazyTeeWalletProvider extends WalletProvider {
     return this.teeWallet!.getWalletBalances();
   }
 
-  async getWalletBalanceForChain(
-    chainName: SupportedChain,
-  ): Promise<string | null> {
+  async getWalletBalanceForChain(chainName: SupportedChain): Promise<string | null> {
     await this.ensureInitialized();
     return this.teeWallet!.getWalletBalanceForChain(chainName);
   }
 }
 
 export const evmWalletProvider: Provider = {
-  name: "EVMWalletProvider",
-  async get(
-    runtime: IAgentRuntime,
-    _message: Memory,
-    state?: State,
-  ): Promise<ProviderResult> {
+  name: 'EVMWalletProvider',
+  async get(runtime: IAgentRuntime, _message: Memory, state?: State): Promise<ProviderResult> {
     try {
       // Get the EVM service
       const evmService = runtime.getService(EVM_SERVICE_NAME);
 
       // If service is not available, fall back to direct fetching
       if (!evmService) {
-        elizaLogger.warn(
-          "EVM service not found, falling back to direct fetching",
-        );
+        elizaLogger.warn('EVM service not found, falling back to direct fetching');
         return await directFetchWalletData(runtime, state);
       }
 
       // Get wallet data from the service
       const walletData = await (evmService as any).getCachedData();
       if (!walletData) {
-        elizaLogger.warn(
-          "No cached wallet data available, falling back to direct fetching",
-        );
+        elizaLogger.warn('No cached wallet data available, falling back to direct fetching');
         return await directFetchWalletData(runtime, state);
       }
 
-      const agentName = state?.agentName || "The agent";
+      const agentName = state?.agentName || 'The agent';
 
       // Create a text representation of all chain balances
       const balanceText = walletData.chains
         .map((chain: any) => `${chain.name}: ${chain.balance} ${chain.symbol}`)
-        .join("\n");
+        .join('\n');
 
       return {
         text: `${agentName}'s EVM Wallet Address: ${walletData.address}\n\nBalances:\n${balanceText}`,
@@ -490,9 +458,9 @@ export const evmWalletProvider: Provider = {
         },
       };
     } catch (error) {
-      console.error("Error in EVM wallet provider:", error);
+      console.error('Error in EVM wallet provider:', error);
       return {
-        text: "Error getting EVM wallet provider",
+        text: 'Error getting EVM wallet provider',
         data: {},
         values: {},
       };
@@ -503,34 +471,30 @@ export const evmWalletProvider: Provider = {
 // Fallback function to fetch wallet data directly
 async function directFetchWalletData(
   runtime: IAgentRuntime,
-  state?: State,
+  state?: State
 ): Promise<ProviderResult> {
   try {
     const walletProvider = await initWalletProvider(runtime);
     const address = walletProvider.getAddress();
     const balances = await walletProvider.getWalletBalances();
-    const agentName = state?.agentName || "The agent";
+    const agentName = state?.agentName || 'The agent';
 
     // Format balances for all chains
-    const chainDetails = Object.entries(balances).map(
-      ([chainName, balance]) => {
-        const chain = walletProvider.getChainConfigs(
-          chainName as SupportedChain,
-        );
-        return {
-          chainName,
-          balance,
-          symbol: chain.nativeCurrency.symbol,
-          chainId: chain.id,
-          name: chain.name,
-        };
-      },
-    );
+    const chainDetails = Object.entries(balances).map(([chainName, balance]) => {
+      const chain = walletProvider.getChainConfigs(chainName as SupportedChain);
+      return {
+        chainName,
+        balance,
+        symbol: chain.nativeCurrency.symbol,
+        chainId: chain.id,
+        name: chain.name,
+      };
+    });
 
     // Create a text representation of all chain balances
     const balanceText = chainDetails
       .map((chain) => `${chain.name}: ${chain.balance} ${chain.symbol}`)
-      .join("\n");
+      .join('\n');
 
     return {
       text: `${agentName}'s EVM Wallet Address: ${address}\n\nBalances:\n${balanceText}`,
@@ -544,9 +508,9 @@ async function directFetchWalletData(
       },
     };
   } catch (error) {
-    console.error("Error fetching wallet data directly:", error);
+    console.error('Error fetching wallet data directly:', error);
     return {
-      text: "Error getting EVM wallet provider",
+      text: 'Error getting EVM wallet provider',
       data: {},
       values: {},
     };
