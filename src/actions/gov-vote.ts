@@ -1,19 +1,9 @@
-import type {
-  IAgentRuntime,
-  Memory,
-  State,
-  HandlerCallback,
-} from "@elizaos/core";
-import { WalletProvider } from "../providers/wallet";
-import { voteTemplate } from "../templates";
-import type { VoteParams, SupportedChain, Transaction } from "../types";
-import governorArtifacts from "../contracts/artifacts/OZGovernor.json";
-import {
-  type ByteArray,
-  type Hex,
-  encodeFunctionData,
-  type Address,
-} from "viem";
+import type { IAgentRuntime, Memory, State, HandlerCallback } from '@elizaos/core';
+import { WalletProvider } from '../providers/wallet';
+import { voteTemplate } from '../templates';
+import type { VoteParams, SupportedChain, Transaction } from '../types';
+import governorArtifacts from '../contracts/artifacts/OZGovernor.json';
+import { type ByteArray, type Hex, encodeFunctionData, type Address } from 'viem';
 
 export { voteTemplate };
 
@@ -34,7 +24,7 @@ export class VoteAction {
 
     const txData = encodeFunctionData({
       abi: governorArtifacts.abi,
-      functionName: "castVote",
+      functionName: 'castVote',
       args: [proposalId, support],
     });
 
@@ -73,8 +63,8 @@ export class VoteAction {
 }
 
 export const voteAction = {
-  name: "vote",
-  description: "Vote for a DAO governance proposal",
+  name: 'vote',
+  description: 'Vote for a DAO governance proposal',
   handler: async (
     runtime: IAgentRuntime,
     _message: Memory,
@@ -84,13 +74,8 @@ export const voteAction = {
   ) => {
     try {
       // Validate required fields
-      if (
-        !options.chain ||
-        !options.governor ||
-        !options.proposalId ||
-        !options.support
-      ) {
-        throw new Error("Missing required parameters for vote");
+      if (!options.chain || !options.governor || !options.proposalId || !options.support) {
+        throw new Error('Missing required parameters for vote');
       }
 
       // Convert options to VoteParams
@@ -101,7 +86,7 @@ export const voteAction = {
         support: Number(options.support),
       };
 
-      const privateKey = runtime.getSetting("EVM_PRIVATE_KEY") as `0x${string}`;
+      const privateKey = runtime.getSetting('EVM_PRIVATE_KEY') as `0x${string}`;
       const walletProvider = new WalletProvider(privateKey, runtime);
       const action = new VoteAction(walletProvider);
       return await action.vote(voteParams);
@@ -116,37 +101,37 @@ export const voteAction = {
   },
   template: voteTemplate,
   validate: async (runtime: IAgentRuntime) => {
-    const privateKey = runtime.getSetting("EVM_PRIVATE_KEY");
-    return typeof privateKey === "string" && privateKey.startsWith("0x");
+    const privateKey = runtime.getSetting('EVM_PRIVATE_KEY');
+    return typeof privateKey === 'string' && privateKey.startsWith('0x');
   },
   examples: [
     [
       {
-        user: "user",
+        user: 'user',
         content: {
-          text: "Vote yes on proposal 123 on the governor at 0x1234567890123456789012345678901234567890 on Ethereum",
-          action: "GOVERNANCE_VOTE",
+          text: 'Vote yes on proposal 123 on the governor at 0x1234567890123456789012345678901234567890 on Ethereum',
+          action: 'GOVERNANCE_VOTE',
         },
       },
     ],
     [
       {
-        user: "user",
+        user: 'user',
         content: {
-          text: "Vote no on proposal 456 on the governor at 0xabcdef1111111111111111111111111111111111 on Ethereum",
-          action: "GOVERNANCE_VOTE",
+          text: 'Vote no on proposal 456 on the governor at 0xabcdef1111111111111111111111111111111111 on Ethereum',
+          action: 'GOVERNANCE_VOTE',
         },
       },
     ],
     [
       {
-        user: "user",
+        user: 'user',
         content: {
-          text: "Abstain from voting on proposal 789 on the governor at 0x0000111122223333444455556666777788889999 on Ethereum",
-          action: "GOVERNANCE_VOTE",
+          text: 'Abstain from voting on proposal 789 on the governor at 0x0000111122223333444455556666777788889999 on Ethereum',
+          action: 'GOVERNANCE_VOTE',
         },
       },
     ],
   ],
-  similes: ["VOTE", "GOVERNANCE_VOTE", "CAST_VOTE"],
+  similes: ['VOTE', 'GOVERNANCE_VOTE', 'CAST_VOTE'],
 }; // TODO: add more examples

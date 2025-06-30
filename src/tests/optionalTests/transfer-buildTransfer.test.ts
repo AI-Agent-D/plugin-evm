@@ -3,11 +3,7 @@ import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import type { Account, Chain } from 'viem';
 import { parseEther } from 'viem';
 
-import {
-  buildTransferDetails,
-  getTransferCallData,
-  TransferAction,
-} from '../../actions/transfer';
+import { buildTransferDetails, getTransferCallData, TransferAction } from '../../actions/transfer';
 import { WalletProvider } from '../../providers/wallet';
 import { getTestChains } from '../custom-chain';
 import {
@@ -34,7 +30,6 @@ const TEST_PRIVATE_KEY = process.env.TEST_PRIVATE_KEY || generatePrivateKey();
 const FUNDED_TEST_WALLET = process.env.FUNDED_TEST_PRIVATE_KEY; // Optional funded wallet for integration tests
 const THRESHOLD = process.env.THRESHOLD;
 const NUMBER_OF_TIMES_RUN = process.env.NUMBER_OF_TIMES_RUN;
-
 
 // Mock the ICacheManager
 const mockCacheManager = {
@@ -179,8 +174,8 @@ describe('transferAction Action Test', () => {
       const numberOfTimesRun = NUMBER_OF_TIMES_RUN as unknown as number;
       const threshold = THRESHOLD as unknown as number;
 
-      console.log("Here is the threshold", threshold)
-      console.log("Here is the number of times run", numberOfTimesRun)
+      console.log('Here is the threshold', threshold);
+      console.log('Here is the number of times run', numberOfTimesRun);
 
       const correctAnswers = {
         fromChain: chain,

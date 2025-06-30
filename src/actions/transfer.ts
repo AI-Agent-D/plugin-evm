@@ -160,12 +160,12 @@ export const buildTransferDetails = async (
   transferDetails.amount = parseUnits(parsedXml.amount, transferDetails.tokenDecimals);
 
   if (isNativeTransfer(transferDetails)) {
-    transferDetails.data = "0x" as Hex
+    transferDetails.data = '0x' as Hex;
   } else {
     transferDetails.data = await getTransferCallData(
-    transferDetails.amount,
-    transferDetails.recipientAddress
-  );
+      transferDetails.amount,
+      transferDetails.recipientAddress
+    );
   }
 
   // Normalize chain name to lowercase to handle case sensitivity issues

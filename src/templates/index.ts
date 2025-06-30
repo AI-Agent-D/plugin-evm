@@ -33,7 +33,7 @@ Here is the format of the XML file:
 </chains>
 
 The above layout must remain the same for each chain you find. 
-`
+`;
 
 export const transferTemplate = `You are helping an AI agent with a blockchain transaction by reading the past messages as shown below:
 

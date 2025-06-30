@@ -31,9 +31,9 @@ const getTokenDecimalsAddress = async (
   // Find the token decimals and addresses.
   // Format in the token data field.
 
-  if (!state) {
-    state = (await runtime.composeState(_message)) as State;
-  }
+
+  state = (await runtime.composeState(_message)) as State;
+  
 
   const context = composePromptFromState({
     state,
@@ -64,6 +64,7 @@ export const evmWalletERC20Provider: Provider = {
 
       const allChainTokenBalances = await Promise.all(
         Object.entries(tokenDataByChain).map(async ([chainName, tokenDataByTokenSymbol]) => {
+          elizaLogger.log(`Currently querying: ${chainName}`)
           const tokenBalancesToQuery = Object.entries(tokenDataByTokenSymbol).map(
             ([tokenSymbol, { tokenAddress, tokenDecimals }]) => ({
               tokenSymbol,
@@ -83,11 +84,9 @@ export const evmWalletERC20Provider: Provider = {
 
       return {
         text: `${agentName}'s EVM Wallet Address: ${walletProvider.account.address}\n ${allChainTokenBalances.join('\n')}`,
-        data: {},
-        values: {},
       };
     } catch (error) {
-      console.error('Error in EVM wallet provider:', error);
+      elizaLogger.log('Error in EVM wallet provider:', error);
       return {
         text: 'Error getting EVM wallet provider',
         data: {},

@@ -11,10 +11,7 @@ import {
   http,
 } from 'viem';
 
-import {
-  getTransferCallData,
-  TransferAction,
-} from '../actions/transfer';
+import { getTransferCallData, TransferAction } from '../actions/transfer';
 import { WalletProvider } from '../providers/wallet';
 import { getTestChains } from './custom-chain';
 
