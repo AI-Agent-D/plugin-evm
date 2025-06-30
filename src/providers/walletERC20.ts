@@ -22,7 +22,7 @@ interface TokenData {
   };
 }
 
-const getTokenDecimalsAddress = async (
+export const getTokenDecimalsAddress = async (
   runtime: IAgentRuntime,
   _message: Memory,
   state?: State
@@ -34,11 +34,12 @@ const getTokenDecimalsAddress = async (
 
   state = (await runtime.composeState(_message)) as State;
   
-
   const context = composePromptFromState({
     state,
     template: searchAddressTokenTemplate,
   });
+
+  console.log("here is the context", context)
 
   const xmlResponse = await runtime.useModel(ModelType.TEXT_SMALL, {
     ...state,
@@ -61,6 +62,8 @@ export const evmWalletERC20Provider: Provider = {
       const walletProvider = await initWalletProvider(runtime);
       const agentName = state?.agentName || 'The agent';
       const tokenDataByChain = await getTokenDecimalsAddress(runtime, _message, state);
+
+      console.log("token data", tokenDataByChain)
 
       const allChainTokenBalances = await Promise.all(
         Object.entries(tokenDataByChain).map(async ([chainName, tokenDataByTokenSymbol]) => {
@@ -85,8 +88,9 @@ export const evmWalletERC20Provider: Provider = {
       return {
         text: `${agentName}'s EVM Wallet Address: ${walletProvider.account.address}\n ${allChainTokenBalances.join('\n')}`,
       };
+
     } catch (error) {
-      elizaLogger.log('Error in EVM wallet provider:', error);
+      console.log('Error in EVM wallet provider:', error); //change this to elizalogger later.
       return {
         text: 'Error getting EVM wallet provider',
         data: {},

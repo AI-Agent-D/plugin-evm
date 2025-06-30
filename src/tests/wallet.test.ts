@@ -1,9 +1,14 @@
-import { describe, it, expect, beforeAll, beforeEach, vi, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, vi, afterEach, Mock } from 'vitest';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { mainnet, type Chain } from 'viem/chains';
 
 import { WalletProvider } from '../providers/wallet';
 import { sepolia, baseSepolia, optimismSepolia, getTestChains } from './custom-chain';
+import { evmWalletERC20Provider, getTokenDecimalsAddress } from 'src/providers/walletERC20';
+import { getToken } from '@lifi/sdk';
+import { AgentRuntime, IAgentRuntime, IDatabaseAdapter, Memory, State, stringToUuid } from '@elizaos/core';
+import { character } from './custom-character';
+import { createMockState } from './optionalTests/transfer-buildTransfer.test';
 
 // Test environment variables - in real tests you'd use a funded testnet wallet
 const TEST_PRIVATE_KEY = process.env.TEST_PRIVATE_KEY || generatePrivateKey();
@@ -258,4 +263,75 @@ describe('Wallet Provider', () => {
       }
     });
   });
+
+
+  describe('ERC20 Tokens obtaining the correct balance', async () => {
+    let mockAgentRuntime: IAgentRuntime;
+    let mockMessage: Memory;
+    let mockState: State;
+
+    const mockAdapter = {
+        log: vi.fn(),
+      };
+      
+    mockAgentRuntime = new AgentRuntime({
+            character: character,
+            adapter: mockAdapter as unknown as IDatabaseAdapter,
+          });
+
+    mockMessage = {
+        agentId: mockAgentRuntime.agentId,
+        entityId: stringToUuid('Entity-Id'),
+        roomId: stringToUuid('Room-ID'),
+        content: {
+          text: `abc`,
+        },
+      } as unknown as Memory;
+    
+     mockState = createMockState() as State;
+      
+    beforeEach(() => {
+      vi.clearAllMocks();
+    })
+
+    it.only('should return the correct EVM balance for the tokens in ERC20', async () => {
+      // happy case
+      const usdcAddressSepolia = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
+
+      const getTokenDecimalsAddress = vi.fn();
+
+      getTokenDecimalsAddress.mockResolvedValueOnce({
+        sepolia: {
+          USDC: {
+            tokenDecimals: 6,
+            tokenAddress: usdcAddressSepolia
+          }
+        }
+      });
+
+      const result = await evmWalletERC20Provider.get(mockAgentRuntime, mockMessage, mockState)
+
+      expect(result.text).toContain("EVM Wallet Address")
+      expect(result.values).toEqual(null)
+      expect(result.data).toEqual(null)
+    });
+
+
+
+    it('should return the the empty case', async () => {
+      const usdcAddressSepolia = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
+      const mockGetTokenDecimalsAdress = getTokenDecimalsAddress as unknown as Mock;
+
+      mockGetTokenDecimalsAdress.mockResolvedValue({
+        sepolia: {}
+      });
+
+      const result = await evmWalletERC20Provider.get(mockAgentRuntime, mockMessage, mockState)
+
+      expect(result.text).toEqual("Error getting EVM wallet provider")
+      expect(result.values).toEqual(null)
+      expect(result.data).toEqual(null)
+    })
+
+  })
 });

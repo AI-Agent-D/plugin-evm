@@ -168,7 +168,7 @@ describe('transferAction Action Test', () => {
   });
 
   describe('USDC Token Case - Using LLMs', () => {
-    it.only('should return a json file containing the USDC transfer information (eg, correct token decimals) on baseSepolia', async () => {
+    it('should return a json file containing the USDC transfer information (eg, correct token decimals) on baseSepolia', async () => {
       const chain = 'baseSepolia';
       let counter = 0;
       const numberOfTimesRun = NUMBER_OF_TIMES_RUN as unknown as number;
