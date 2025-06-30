@@ -10,6 +10,7 @@ import {
   ServiceType,
 } from '@elizaos/core';
 import type {
+  AbiFunction,
   Account,
   Address,
   Chain,
@@ -29,6 +30,7 @@ import {
   walletActions,
   getContract,
   getAddress,
+  parseUnits,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import * as viemChains from 'viem/chains';
@@ -147,51 +149,105 @@ export class WalletProvider {
     }
   }
 
+  async getWalletERC20BalancesForChain(
+    chainName: SupportedChain,
+    tokens: {
+      tokenDecimals: number;
+      tokenAddress: string;
+      tokenSymbol: string;
+    }[]
+  ) {
+    const client = this.getPublicClient(chainName);
+    const erc20ABI = [
+      {
+        type: 'function',
+        name: 'balanceOf',
+        inputs: [
+          {
+            name: 'account',
+            type: 'address',
+            internalType: 'address',
+          },
+        ],
+        outputs: [
+          {
+            name: '',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+        ],
+        stateMutability: 'view',
+      },
+    ] as AbiFunction[];
+
+    const tokenBalances = await client.multicall({
+      contracts: tokens.map(({ tokenAddress }) => {
+        return {
+          address: getAddress(tokenAddress),
+          abi: erc20ABI,
+          functionName: 'balanceOf',
+          args: [this.account.address],
+        };
+      }),
+    });
+
+    return tokenBalances.map(({ result, error }, idx) => {
+      const { tokenDecimals, tokenSymbol } = tokens[idx];
+      if (error) {
+        console.error(
+          `Error getting ERC20 balance for ${tokenSymbol} on chain ${chainName}:`,
+          error
+        );
+        return;
+      }
+      return `${tokenSymbol}: ${formatUnits(result as unknown as bigint, tokenDecimals)}`;
+    });
+  }
+
   async getWalletBalanceForERC20(
     chainName: SupportedChain,
     tokenDecimals: number,
-    tokenAddress: string,
+    tokenAddress: string
   ): Promise<string | null> {
-
-      try {
-        const client = this.getPublicClient(chainName);
-        const contract = getContract({
-          address: getAddress(tokenAddress) as `0x${string}`,
-          abi: [
-            {
-              type: 'function',
-              name: 'balanceOf',
-              inputs: [
-                {
-                  name: 'account',
-                  type: 'address',
-                  internalType: 'address',
-                },
-              ],
-              outputs: [
-                {
-                  name: '',
-                  type: 'uint256',
-                  internalType: 'uint256',
-                },
-              ],
-              stateMutability: 'view',
-            },
-          ],
-          client: {
-            public: client as never,
+    try {
+      const client = this.getPublicClient(chainName);
+      const contract = getContract({
+        address: getAddress(tokenAddress) as `0x${string}`,
+        abi: [
+          {
+            type: 'function',
+            name: 'balanceOf',
+            inputs: [
+              {
+                name: 'account',
+                type: 'address',
+                internalType: 'address',
+              },
+            ],
+            outputs: [
+              {
+                name: '',
+                type: 'uint256',
+                internalType: 'uint256',
+              },
+            ],
+            stateMutability: 'view',
           },
-        }) as any;
-  
-        const balance = await contract.read.balanceOf([this.account.address]);
-        const balanceFormatted = formatUnits(balance, tokenDecimals);
-        elizaLogger.log('Wallet ERC 20 balance cached for chain: ', client.chain.name);
-        return balanceFormatted;
-      } catch (error) {
-        console.error('Error getting wallet ERC20 balance:', error);
-        return null;
-      }
-  };
+        ],
+        client: {
+          public: client as never,
+        },
+      }) as any;
+
+      const balance = await contract.read.balanceOf([this.account.address]);
+      const balanceFormatted = formatUnits(balance, tokenDecimals);
+      elizaLogger.log('Wallet ERC 20 balance cached for chain: ', client.chain.name);
+      return balanceFormatted;
+    } catch (error) {
+      console.error('Error getting wallet ERC20 balance:', error);
+      return null;
+    }
+  }
 
   addChain(chain: Record<string, Chain>) {
     this.addChains(chain);
