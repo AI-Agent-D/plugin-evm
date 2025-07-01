@@ -27,7 +27,8 @@ export const character: Character = {
     ...(!process.env.IGNORE_BOOTSTRAP ? ['@elizaos/plugin-bootstrap'] : []),
   ],
   settings: {
-    secrets: {"EVM_PRIVATE_KEY": process.env.EVM_PRIVATE_KEY},
+    secrets: {},
+    EVM_PRIVATE_KEY: process.env.TEST_PRIVATE_KEY,
     chains: {
       evm: ['sepolia'],
     },

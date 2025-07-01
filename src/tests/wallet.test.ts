@@ -1,14 +1,24 @@
 import { describe, it, expect, beforeAll, beforeEach, vi, afterEach, Mock } from 'vitest';
+
+vi.mock('src/providers/walletERC20', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  return {
+    ...actual,
+    getTokenDecimalsAddress: vi.fn(),
+  };
+});
+
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
-import { mainnet, type Chain } from 'viem/chains';
 
 import { WalletProvider } from '../providers/wallet';
 import { sepolia, baseSepolia, optimismSepolia, getTestChains } from './custom-chain';
-import { evmWalletERC20Provider, getTokenDecimalsAddress } from 'src/providers/walletERC20';
-import { getToken } from '@lifi/sdk';
 import { AgentRuntime, IAgentRuntime, IDatabaseAdapter, Memory, State, stringToUuid } from '@elizaos/core';
 import { character } from './custom-character';
 import { createMockState } from './optionalTests/transfer-buildTransfer.test';
+import dotenv from 'dotenv';
+import { getToken } from '@lifi/sdk';
+
+dotenv.config();
 
 // Test environment variables - in real tests you'd use a funded testnet wallet
 const TEST_PRIVATE_KEY = process.env.TEST_PRIVATE_KEY || generatePrivateKey();
@@ -269,6 +279,10 @@ describe('Wallet Provider', () => {
     let mockAgentRuntime: IAgentRuntime;
     let mockMessage: Memory;
     let mockState: State;
+    let walletProvider: WalletProvider;
+    let pk: `0x${string}`;
+    
+    pk = TEST_PRIVATE_KEY as `0x${string}`;
 
     const mockAdapter = {
         log: vi.fn(),
@@ -289,6 +303,8 @@ describe('Wallet Provider', () => {
       } as unknown as Memory;
     
      mockState = createMockState() as State;
+
+     walletProvider = new WalletProvider(pk, mockCacheManager as any);
       
     beforeEach(() => {
       vi.clearAllMocks();
@@ -297,10 +313,9 @@ describe('Wallet Provider', () => {
     it.only('should return the correct EVM balance for the tokens in ERC20', async () => {
       // happy case
       const usdcAddressSepolia = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
+      const mockGetTokenDecimalsAddress = vi.mocked(getTokenDecimalsAddress);
 
-      const getTokenDecimalsAddress = vi.fn();
-
-      getTokenDecimalsAddress.mockResolvedValueOnce({
+      mockGetTokenDecimalsAddress.mockResolvedValueOnce({
         sepolia: {
           USDC: {
             tokenDecimals: 6,

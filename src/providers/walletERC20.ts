@@ -13,6 +13,7 @@ import { initWalletProvider } from './wallet';
 import { type SupportedChain } from 'src/types';
 import { searchAddressTokenTemplate } from 'src/templates';
 
+
 interface TokenData {
   [chain: string]: {
     [token: string]: {
