@@ -1,14 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, vi, afterEach, Mock } from 'vitest';
 
-vi.mock('src/providers/walletERC20', async (importOriginal) => {
-  const actual = await importOriginal() as any;
-  return {
-    ...actual,
-    getTokenDecimalsAddress: vi.fn(),
-  };
-});
-
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
+import * as walletERC20Module from 'src/providers/walletERC20';
 
 import { WalletProvider } from '../providers/wallet';
 import { sepolia, baseSepolia, optimismSepolia, getTestChains } from './custom-chain';
@@ -310,12 +303,12 @@ describe('Wallet Provider', () => {
       vi.clearAllMocks();
     })
 
-    it.only('should return the correct EVM balance for the tokens in ERC20', async () => {
+    it('should return the correct EVM balance for the tokens in ERC20', async () => {
       // happy case
       const usdcAddressSepolia = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
-      const mockGetTokenDecimalsAddress = vi.mocked(getTokenDecimalsAddress);
+      const walletAddress = walletProvider.account.address
 
-      mockGetTokenDecimalsAddress.mockResolvedValueOnce({
+      const mockGetTokenDecimalsAddress = vi.spyOn(walletERC20Module, 'getTokenDecimalsAddress').mockResolvedValueOnce({
         sepolia: {
           USDC: {
             tokenDecimals: 6,
@@ -324,29 +317,93 @@ describe('Wallet Provider', () => {
         }
       });
 
-      const result = await evmWalletERC20Provider.get(mockAgentRuntime, mockMessage, mockState)
+      const result = await walletERC20Module.evmWalletERC20Provider.get(mockAgentRuntime, mockMessage, mockState)
 
-      expect(result.text).toContain("EVM Wallet Address")
-      expect(result.values).toEqual(null)
-      expect(result.data).toEqual(null)
+      expect(result.text).toContain(`EVM Wallet Address: ${walletAddress}`)
+      expect(result.text).toContain(`USDC`)
+      expect(result.values).toEqual(undefined)
+      expect(result.data).toEqual(undefined)
     });
 
-
-
-    it('should return the the empty case', async () => {
+    it('should return more than 1 token', async () => {
       const usdcAddressSepolia = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
-      const mockGetTokenDecimalsAdress = getTokenDecimalsAddress as unknown as Mock;
+      const usdtAddressSepolia = '0x863aE464D7E8e6F95b845FD3AF0f9A2B2034D6dD';
 
-      mockGetTokenDecimalsAdress.mockResolvedValue({
-        sepolia: {}
+      const mockGetTokenDecimalsAddress = vi.spyOn(walletERC20Module, 'getTokenDecimalsAddress').mockResolvedValueOnce({
+        sepolia: {
+          USDC: {
+            tokenDecimals: 6,
+            tokenAddress: usdcAddressSepolia
+          },
+          USDT: {
+            tokenDecimals: 6,
+            tokenAddress: usdtAddressSepolia
+          }
+
+        }
       });
 
-      const result = await evmWalletERC20Provider.get(mockAgentRuntime, mockMessage, mockState)
+      const result = await walletERC20Module.evmWalletERC20Provider.get(mockAgentRuntime, mockMessage, mockState)
 
-      expect(result.text).toEqual("Error getting EVM wallet provider")
-      expect(result.values).toEqual(null)
-      expect(result.data).toEqual(null)
+      expect(result.text).toContain("USDC")
+      expect(result.text).toContain("USDT")
+      expect(result.values).toEqual(undefined)
+      expect(result.data).toEqual(undefined)
     })
 
+    it.only('should return the tokens on different test nets (baseSepolia and Sepolia)', async () => {
+      const usdcAddressBase = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
+      const usdcAddressSepolia = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
+      const usdtAddressSepolia = '0x863aE464D7E8e6F95b845FD3AF0f9A2B2034D6dD';
+
+      const mockGetTokenDecimalsAddress = vi.spyOn(walletERC20Module, 'getTokenDecimalsAddress').mockResolvedValueOnce({
+        baseSepolia: {
+          USDC: {
+            tokenDecimals: 6,
+            tokenAddress: usdcAddressBase
+          }
+        },
+        sepolia: {
+          USDC: {
+            tokenDecimals: 6,
+            tokenAddress: usdcAddressSepolia
+          },
+          USDT: {
+            tokenDecimals: 6,
+            tokenAddress: usdtAddressSepolia
+          }
+        }
+      });
+
+      const result = await walletERC20Module.evmWalletERC20Provider.get(mockAgentRuntime, mockMessage, mockState)
+
+      expect(result.text).toContain("USDC")
+      expect(result.text).toContain("USDT")
+      expect(result.text).toContain("baseSepolia")
+      expect(result.text).toContain("sepolia")
+      expect(result.values).toEqual(undefined)
+      expect(result.data).toEqual(undefined)
+    })
+
+    it('should return more than 1 token on different test nets (baseSepolia and Sepolia)', async () => {
+      const usdcAddressBase = '0x0000sdsds000';
+
+      const mockGetTokenDecimalsAddress = vi.spyOn(walletERC20Module, 'getTokenDecimalsAddress').mockResolvedValueOnce({
+        baseSepolia: {
+          kudoCoin: {
+            tokenDecimals: 100,
+            tokenAddress: usdcAddressBase
+          }
+        }
+      });
+
+      const result = await walletERC20Module.evmWalletERC20Provider.get(mockAgentRuntime, mockMessage, mockState)
+
+      expect(result.text).toEqual('Error getting EVM wallet provider')
+      expect(result.values).toEqual({})
+      expect(result.data).toEqual({})
+    })
+  
   })
+
 });

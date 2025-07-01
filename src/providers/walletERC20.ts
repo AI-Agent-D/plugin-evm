@@ -64,8 +64,6 @@ export const evmWalletERC20Provider: Provider = {
       const agentName = state?.agentName || 'The agent';
       const tokenDataByChain = await getTokenDecimalsAddress(runtime, _message, state);
 
-      console.log("token data", tokenDataByChain)
-
       const allChainTokenBalances = await Promise.all(
         Object.entries(tokenDataByChain).map(async ([chainName, tokenDataByTokenSymbol]) => {
           elizaLogger.log(`Currently querying: ${chainName}`)
@@ -91,7 +89,7 @@ export const evmWalletERC20Provider: Provider = {
       };
 
     } catch (error) {
-      console.log('Error in EVM wallet provider:', error); //change this to elizalogger later.
+      elizaLogger.log('Error in EVM wallet provider:', error); //change this to elizalogger later.
       return {
         text: 'Error getting EVM wallet provider',
         data: {},

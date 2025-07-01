@@ -30,7 +30,7 @@ export const character: Character = {
     secrets: {},
     EVM_PRIVATE_KEY: process.env.TEST_PRIVATE_KEY,
     chains: {
-      evm: ['sepolia'],
+      evm: ['sepolia', 'baseSepolia'],
     },
   },
   system:
