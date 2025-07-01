@@ -81,7 +81,7 @@ describe('transferAction Action Test', () => {
       entityId: stringToUuid('Entity-Id'),
       roomId: stringToUuid('Room-ID'),
       content: {
-        text: `Please transfer 0.0001 ETH to address: ${receiver.address} on the sepolia network`,
+        text: `Please transfer 0.0001 USDC to address: ${receiver.address} on the sepolia network`,
       },
     } as unknown as Memory;
 
@@ -244,3 +244,4 @@ describe('transferAction Action Test', () => {
     });
   });
 });
+
