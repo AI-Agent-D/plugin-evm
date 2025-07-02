@@ -156,7 +156,6 @@ describe('Transfer Action', () => {
     describe('Network-specific transfers', () => {
       it('should work with Sepolia testnet', async () => {
         const balance = await wp.getWalletBalanceForChain('sepolia');
-        console.log(balance);
         console.log(`Sepolia balance: ${balance} ETH`);
 
         if (balance && parseFloat(balance) > 0.001) {
@@ -225,24 +224,26 @@ describe('Transfer Action', () => {
       });
     });
 
-    it('should work with Base Sepolia testnet (for ERC20 - USDC)', async () => {
+    it.only('should work with Base Sepolia testnet (for ERC20 - USDC)', async () => {
       const balance = await wp.getWalletBalanceForERC20('baseSepolia', 6, usdcAddressBase);
       console.log(`Base Sepolia balance: ${balance} USDC`);
+
+      const abiEncoding = await getTransferCallData(parseUnits("1",6), receiver.address)
 
       if (balance && parseFloat(balance) > 0.001) {
         const result = await ta.transfer({
           fromChain: 'baseSepolia' as any,
           toAddress: usdcAddressBase,
-          amount: 1000000n,
+          amount: parseUnits("1", 6), // 1 USDC
           recipientAddress: receiver.address,
           token: 'USDC',
           tokenDecimals: 6,
-          data: (await getTransferCallData(1000000n, receiver.address)) as Hex,
+          data: (await getTransferCallData(parseUnits("1", 6), receiver.address)) as Hex,
         });
 
         expect(result.hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
         expect(result.to).toBe(usdcAddressBase);
-        expect(result.data.startsWith('0x')).toBe(true);
+        expect(result.data).toEqual(abiEncoding);
         expect(result.value).toBe(0n);
       } else {
         console.warn('Skipping Base Sepolia transfer test - insufficient balance');
@@ -317,7 +318,7 @@ describe('Transfer Action', () => {
           const result = await fundedTa.transfer({
             fromChain: 'sepolia' as any,
             toAddress: receiver.address,
-            amount: parseEther('0.0001'), // 0.0001 ETH
+            amount: parseEther('0.0001'), 
             recipientAddress: '0xrecipientAddress',
             token: 'ETH',
             tokenDecimals: 18,

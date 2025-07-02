@@ -16,23 +16,27 @@ Thirdly, research online what the token address is on the chain current chain.
 
 Fifthly, there can be more than one chain in the recent messages, so perform the check for each chain.
 
-Return your output as a XML file as follows where the keys are:
+Return your output as a json file as follows where the keys are:
 
 tokenSymbol: The token symbol you found in the first step.
 tokenDecimals: The token decimals you found in the second step.
 tokenAddress: The token address you find online in the third step.
 chains: One of the chains you found in the fourth step.
 
-Here is the format of the XML file:
+Here is the format of the json file:
 
-<chains>
-    <tokenSymbol>
-      <tokenDecimals>string | null</tokenDecimals>
-      <tokenAddress>string | null</tokenAddress>
-    </token>
-</chains>
+\`\`\`\json
+{
+  "chainName": {
+    "tokenSymbol": {
+      "tokenDecimals": number,
+      "tokenAddress": "string"
+    }
+  }
+}
+\`\`\`\
 
-The above layout must remain the same for each chain you find. 
+The above layout must remain the same for each chain you find. Add a new chain name with the same structure for each chain you find.
 `;
 
 export const transferTemplate = `You are helping an AI agent with a blockchain transaction by reading the past messages as shown below:

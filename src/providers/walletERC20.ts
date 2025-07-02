@@ -8,6 +8,7 @@ import {
   ModelType,
   parseKeyValueXml,
   elizaLogger,
+  parseJSONObjectFromText,
 } from '@elizaos/core';
 import { initWalletProvider } from './wallet';
 import { type SupportedChain } from 'src/types';
@@ -28,10 +29,6 @@ export const getTokenDecimalsAddress = async (
   _message: Memory,
   state?: State
 ): Promise<TokenData> => {
-  // Look through all recent messages and figure out which tokens have been mentioned and on which chains.
-  // Find the token decimals and addresses.
-  // Format in the token data field.
-
 
   state = (await runtime.composeState(_message)) as State;
   
@@ -40,20 +37,22 @@ export const getTokenDecimalsAddress = async (
     template: searchAddressTokenTemplate,
   });
 
-  console.log("here is the context", context)
-
   const xmlResponse = await runtime.useModel(ModelType.TEXT_SMALL, {
     ...state,
     prompt: context,
   });
 
-  const parsedXml = parseKeyValueXml(xmlResponse);
+  const parsedJSON = parseJSONObjectFromText(xmlResponse);
 
-  if (!parsedXml) {
+  const chainsDataset = {};
+
+  console.log("Here is the parsed json", parsedJSON)
+
+  if (!parsedJSON) {
     throw new Error('Failed to parse XML response from LLM for transfer details.');
   }
 
-  return parsedXml as TokenData;
+  return parsedJSON as TokenData;
 };
 
 export const evmWalletERC20Provider: Provider = {
@@ -89,7 +88,7 @@ export const evmWalletERC20Provider: Provider = {
       };
 
     } catch (error) {
-      elizaLogger.log('Error in EVM wallet provider:', error); //change this to elizalogger later.
+      console.log('Error in EVM wallet provider:', error); //change this to elizalogger later.
       return {
         text: 'Error getting EVM wallet provider',
         data: {},

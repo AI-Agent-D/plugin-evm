@@ -30,3 +30,6 @@ out
 
 # Temporary
 gov-propose.ts
+gov-execute.ts
+gov-queue.ts
+gov-vote.ts
