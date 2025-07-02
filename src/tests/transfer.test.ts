@@ -238,7 +238,7 @@ describe('Transfer Action', () => {
           token: 'USDC',
           tokenDecimals: 6,
           data: (await getTransferCallData(1000000n, receiver.address)) as Hex,
-        }); // Don't forget to change the address later!
+        });
 
         expect(result.hash).toMatch(/^0x[a-fA-F0-9]{64}$/);
         expect(result.to).toBe(usdcAddressBase);

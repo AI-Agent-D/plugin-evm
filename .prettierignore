@@ -27,3 +27,6 @@ out
 .DS_Store
 .env
 .env.*
+
+# Temporary
+gov-propose.ts
