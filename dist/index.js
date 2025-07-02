@@ -89,7 +89,6 @@ import {
   encodeAbiParameters,
   encodeDeployData,
   encodeFunctionData,
-  etherUnits,
   extract,
   formatAbiItem,
   formatAbiItem2,
@@ -153,7 +152,7 @@ import {
   universalSignatureValidatorByteCode,
   validate,
   withResolvers
-} from "./chunk-RYNYFDN5.js";
+} from "./chunk-ZMWNCLN5.js";
 import "./chunk-6CJJIFDC.js";
 import {
   __export
@@ -2330,6 +2329,176 @@ async function writeContract(client, parameters) {
   }
 }
 
+// node_modules/viem/_esm/actions/getContract.js
+function getContract({ abi: abi2, address, client: client_ }) {
+  const client = client_;
+  const [publicClient, walletClient] = (() => {
+    if (!client)
+      return [void 0, void 0];
+    if ("public" in client && "wallet" in client)
+      return [client.public, client.wallet];
+    if ("public" in client)
+      return [client.public, void 0];
+    if ("wallet" in client)
+      return [void 0, client.wallet];
+    return [client, client];
+  })();
+  const hasPublicClient = publicClient !== void 0 && publicClient !== null;
+  const hasWalletClient = walletClient !== void 0 && walletClient !== null;
+  const contract = {};
+  let hasReadFunction = false;
+  let hasWriteFunction = false;
+  let hasEvent = false;
+  for (const item of abi2) {
+    if (item.type === "function")
+      if (item.stateMutability === "view" || item.stateMutability === "pure")
+        hasReadFunction = true;
+      else
+        hasWriteFunction = true;
+    else if (item.type === "event")
+      hasEvent = true;
+    if (hasReadFunction && hasWriteFunction && hasEvent)
+      break;
+  }
+  if (hasPublicClient) {
+    if (hasReadFunction)
+      contract.read = new Proxy({}, {
+        get(_, functionName) {
+          return (...parameters) => {
+            const { args, options } = getFunctionParameters(parameters);
+            return getAction(publicClient, readContract, "readContract")({
+              abi: abi2,
+              address,
+              functionName,
+              args,
+              ...options
+            });
+          };
+        }
+      });
+    if (hasWriteFunction)
+      contract.simulate = new Proxy({}, {
+        get(_, functionName) {
+          return (...parameters) => {
+            const { args, options } = getFunctionParameters(parameters);
+            return getAction(publicClient, simulateContract, "simulateContract")({
+              abi: abi2,
+              address,
+              functionName,
+              args,
+              ...options
+            });
+          };
+        }
+      });
+    if (hasEvent) {
+      contract.createEventFilter = new Proxy({}, {
+        get(_, eventName) {
+          return (...parameters) => {
+            const abiEvent = abi2.find((x) => x.type === "event" && x.name === eventName);
+            const { args, options } = getEventParameters(parameters, abiEvent);
+            return getAction(publicClient, createContractEventFilter, "createContractEventFilter")({
+              abi: abi2,
+              address,
+              eventName,
+              args,
+              ...options
+            });
+          };
+        }
+      });
+      contract.getEvents = new Proxy({}, {
+        get(_, eventName) {
+          return (...parameters) => {
+            const abiEvent = abi2.find((x) => x.type === "event" && x.name === eventName);
+            const { args, options } = getEventParameters(parameters, abiEvent);
+            return getAction(publicClient, getContractEvents, "getContractEvents")({
+              abi: abi2,
+              address,
+              eventName,
+              args,
+              ...options
+            });
+          };
+        }
+      });
+      contract.watchEvent = new Proxy({}, {
+        get(_, eventName) {
+          return (...parameters) => {
+            const abiEvent = abi2.find((x) => x.type === "event" && x.name === eventName);
+            const { args, options } = getEventParameters(parameters, abiEvent);
+            return getAction(publicClient, watchContractEvent, "watchContractEvent")({
+              abi: abi2,
+              address,
+              eventName,
+              args,
+              ...options
+            });
+          };
+        }
+      });
+    }
+  }
+  if (hasWalletClient) {
+    if (hasWriteFunction)
+      contract.write = new Proxy({}, {
+        get(_, functionName) {
+          return (...parameters) => {
+            const { args, options } = getFunctionParameters(parameters);
+            return getAction(walletClient, writeContract, "writeContract")({
+              abi: abi2,
+              address,
+              functionName,
+              args,
+              ...options
+            });
+          };
+        }
+      });
+  }
+  if (hasPublicClient || hasWalletClient) {
+    if (hasWriteFunction)
+      contract.estimateGas = new Proxy({}, {
+        get(_, functionName) {
+          return (...parameters) => {
+            const { args, options } = getFunctionParameters(parameters);
+            const client2 = publicClient ?? walletClient;
+            return getAction(client2, estimateContractGas, "estimateContractGas")({
+              abi: abi2,
+              address,
+              functionName,
+              args,
+              ...options,
+              account: options.account ?? walletClient.account
+            });
+          };
+        }
+      });
+  }
+  contract.address = address;
+  contract.abi = abi2;
+  return contract;
+}
+function getFunctionParameters(values) {
+  const hasArgs = values.length && Array.isArray(values[0]);
+  const args = hasArgs ? values[0] : [];
+  const options = (hasArgs ? values[1] : values[0]) ?? {};
+  return { args, options };
+}
+function getEventParameters(values, abiEvent) {
+  let hasArgs = false;
+  if (Array.isArray(values[0]))
+    hasArgs = true;
+  else if (values.length === 1) {
+    hasArgs = abiEvent.inputs.some((x) => x.indexed);
+  } else if (values.length === 2) {
+    hasArgs = true;
+  }
+  const args = hasArgs ? values[0] : void 0;
+  const options = (hasArgs ? values[1] : values[0]) ?? {};
+  return { args, options };
+}
+
 // node_modules/viem/_esm/utils/formatters/transactionReceipt.js
 var receiptStatuses = {
   "0x0": "reverted",
@@ -4418,11 +4587,6 @@ function parseUnits(value, decimals) {
     fraction = fraction.padEnd(decimals, "0");
   }
   return BigInt(`${negative ? "-" : ""}${integer}${fraction}`);
-}
-
-// node_modules/viem/_esm/utils/unit/parseEther.js
-function parseEther(ether, unit = "wei") {
-  return parseUnits(ether, etherUnits[unit]);
 }
 
 // node_modules/viem/_esm/utils/formatters/proof.js
@@ -24432,6 +24596,90 @@ var WalletProvider = class {
       return null;
     }
   }
+  async getWalletERC20BalancesForChain(chainName, tokens) {
+    const client = this.getPublicClient(chainName);
+    const erc20ABI = [
+      {
+        type: "function",
+        name: "balanceOf",
+        inputs: [
+          {
+            name: "account",
+            type: "address",
+            internalType: "address"
+          }
+        ],
+        outputs: [
+          {
+            name: "",
+            type: "uint256",
+            internalType: "uint256"
+          }
+        ],
+        stateMutability: "view"
+      }
+    ];
+    const tokenBalances = await client.multicall({
+      contracts: tokens.map(({ tokenAddress }) => {
+        return {
+          address: getAddress(tokenAddress),
+          abi: erc20ABI,
+          functionName: "balanceOf",
+          args: [this.account.address]
+        };
+      })
+    });
+    return tokenBalances.map(({ result, error }, idx) => {
+      const { tokenDecimals, tokenSymbol } = tokens[idx];
+      if (error) {
+        console.error(
+          `Error getting ERC20 balance for ${tokenSymbol} on chain ${chainName}:`,
+          error
+        );
+        return;
+      }
+      return `${tokenSymbol}: ${formatUnits(result, tokenDecimals)}`;
+    });
+  }
+  async getWalletBalanceForERC20(chainName, tokenDecimals, tokenAddress) {
+    try {
+      const client = this.getPublicClient(chainName);
+      const contract = getContract({
+        address: getAddress(tokenAddress),
+        abi: [
+          {
+            type: "function",
+            name: "balanceOf",
+            inputs: [
+              {
+                name: "account",
+                type: "address",
+                internalType: "address"
+              }
+            ],
+            outputs: [
+              {
+                name: "",
+                type: "uint256",
+                internalType: "uint256"
+              }
+            ],
+            stateMutability: "view"
+          }
+        ],
+        client: {
+          public: client
+        }
+      });
+      const balance = await contract.read.balanceOf([this.account.address]);
+      const balanceFormatted = formatUnits(balance, tokenDecimals);
+      elizaLogger.log("Wallet ERC 20 balance cached for chain: ", client.chain.name);
+      return balanceFormatted;
+    } catch (error) {
+      console.error("Error getting wallet ERC20 balance:", error);
+      return null;
+    }
+  }
   addChain(chain) {
     this.addChains(chain);
   }
@@ -24479,23 +24727,17 @@ var genChainsFromRuntime = (runtime) => {
   const configuredChains = runtime?.character?.settings?.chains?.evm || [];
   const chainsToUse = configuredChains.length > 0 ? configuredChains : ["mainnet", "base"];
   if (!configuredChains.length) {
-    elizaLogger.warn(
-      "No EVM chains configured in settings, defaulting to mainnet and base"
-    );
+    elizaLogger.warn("No EVM chains configured in settings, defaulting to mainnet and base");
   }
   const chains = {};
   for (const chainName of chainsToUse) {
     try {
-      let rpcUrl = runtime.getSetting(
-        `ETHEREUM_PROVIDER_${chainName.toUpperCase()}`
-      );
+      let rpcUrl = runtime.getSetting(`ETHEREUM_PROVIDER_${chainName.toUpperCase()}`);
       if (!rpcUrl) {
         rpcUrl = runtime.getSetting(`EVM_PROVIDER_${chainName.toUpperCase()}`);
       }
       if (!chains_exports[chainName]) {
-        elizaLogger.warn(
-          `Chain ${chainName} not found in viem chains, skipping`
-        );
+        elizaLogger.warn(`Chain ${chainName} not found in viem chains, skipping`);
         continue;
       }
       const chain = WalletProvider.genChainFromName(chainName, rpcUrl);
@@ -24550,11 +24792,13 @@ var LazyTeeWalletProvider = class extends WalletProvider {
       );
     }
     if (typeof teeService.deriveEcdsaKeypair !== "function") {
-      throw new Error(
-        "TEE service does not implement deriveEcdsaKeypair method"
-      );
+      throw new Error("TEE service does not implement deriveEcdsaKeypair method");
     }
-    const { keypair, attestation } = await teeService.deriveEcdsaKeypair(this.walletSecretSalt, "evm", this.runtime.agentId);
+    const { keypair, attestation } = await teeService.deriveEcdsaKeypair(
+      this.walletSecretSalt,
+      "evm",
+      this.runtime.agentId
+    );
     this.teeWallet = new WalletProvider(keypair, this.runtime, this.chains);
     this.account = this.teeWallet.account;
   }
@@ -24596,16 +24840,12 @@ var evmWalletProvider = {
     try {
       const evmService = runtime.getService(EVM_SERVICE_NAME);
       if (!evmService) {
-        elizaLogger.warn(
-          "EVM service not found, falling back to direct fetching"
-        );
+        elizaLogger.warn("EVM service not found, falling back to direct fetching");
         return await directFetchWalletData(runtime, state);
       }
       const walletData = await evmService.getCachedData();
       if (!walletData) {
-        elizaLogger.warn(
-          "No cached wallet data available, falling back to direct fetching"
-        );
+        elizaLogger.warn("No cached wallet data available, falling back to direct fetching");
         return await directFetchWalletData(runtime, state);
       }
       const agentName = state?.agentName || "The agent";
@@ -24640,20 +24880,16 @@ async function directFetchWalletData(runtime, state) {
     const address = walletProvider.getAddress();
     const balances = await walletProvider.getWalletBalances();
     const agentName = state?.agentName || "The agent";
-    const chainDetails = Object.entries(balances).map(
-      ([chainName, balance]) => {
-        const chain = walletProvider.getChainConfigs(
-          chainName
-        );
-        return {
-          chainName,
-          balance,
-          symbol: chain.nativeCurrency.symbol,
-          chainId: chain.id,
-          name: chain.name
-        };
-      }
-    );
+    const chainDetails = Object.entries(balances).map(([chainName, balance]) => {
+      const chain = walletProvider.getChainConfigs(chainName);
+      return {
+        chainName,
+        balance,
+        symbol: chain.nativeCurrency.symbol,
+        chainId: chain.id,
+        name: chain.name
+      };
+    });
     const balanceText = chainDetails.map((chain) => `${chain.name}: ${chain.balance} ${chain.symbol}`).join("\n");
     return {
       text: `${agentName}'s EVM Wallet Address: ${address}
@@ -24692,25 +24928,30 @@ Firstly, from the messages, I want you to decide if this is a native token trans
 
 Secondly, I want you to extract the token symbol. If this is a native token transfer, then output the symbol for native tokens. If this is not a native token transfer, then extract the token symbol in ERC-20 version.
 
-Thirdly, I want you to extract the amount to be transferred. Based on the previous decision, if this transaction is a native token transfer then **report the amount in wei.** If this is **not** a native token transfer, this should be the **total amount of the token based on the second step** to be transferred by the AI agent to the recipient in **its smallest unit** (token decimals).
+Thirdly, I want you to extract the amount to be transferred between one address to another.
 
 ## For this section, search online only if needed and use official sources only!
 Fourthly, deduce the address to send the token to. If this is a native token transfer, then use the recipient\u2019s address in the messages. If this not a native token transfer, then use the **token address for the token you chose from the third step for the blockchain:  {{supportedChains}}..** If you do not know the token address, then do a quick search to find out the token address in the blockchain: {{supportedChains}}.. **Never guess this** and only output null if you do not know the token address or if the recipient\u2019s address is not present.
 ## End section.
 
-Fifth, go through the recent messages again and extract the recipient address (i.e the address where the AI agent sends the tokens to). **This is very important in the last step before putting the data inside the XML block**
+Fifth, go through the recent messages again and extract the recipient address (i.e the address where the AI agent sends the tokens to). 
+
+Sixth, I want you to use the token symbol you found in the second step and deduce the number of token decimals needed for the transfer. 
+
+Seventh, I want you to look at the recentMessages and find out the blockchain that the transfer is going to be conducted in. It has to be **one** of these blockchains, whereby the '|' indicates 'or': {{supportedChains}}
 
 Respond using an XML block containing only the extracted values, whereby:
-Amount: If there is a native token transfer, then this should be in wei, or else it should be set to 0. **Do not rely on the value found in step 2 on this section.**
-toAddress: This is the token address found from the fourth step.
-Token: The token symbol from the third step.
-tokenDecimals: The full amount you obtained, in the third step, in full. (MUST BE IN INT)
+amount: The amount found from the third step.
+toAddress: This is the address found from the fourth step.
+token: The token symbol from the second step.
+tokenDecimals: The number of token decimals you obtained, in the sixth step. 
 recipientAddress: The recipient address you extracted from the fifth step.
+fromChain: The blockchain where the transfer is conducted in the seventh step. The final answer should not contain '|' because this symbol means 'or'.
 
 All fields must be filled:
 
 <response>
-<fromChain>  {{supportedChains}}. </fromChain> <amount>string | null</amount> <toAddress>string | null</toAddress> <token>string | null</token> <tokenDecimals> int | null </tokenDecimals> <recipientAddress> str | null </recipientAddress>
+<fromChain>  string | null. </fromChain> <amount>string | null</amount> <toAddress>string | null</toAddress> <token>string | null</token> <tokenDecimals> int | null </tokenDecimals> <recipientAddress> str | null </recipientAddress>
 </response>
 
 IMPORTANT: Your response must ONLY contain the <response></response> XML block above. Do not include any text, thinking, or reasoning before or after this XML block. Start your response immediately with <response> and end with </response>.
@@ -24774,9 +25015,7 @@ var BridgeAction = class {
         EVM({
           getWalletClient: async () => {
             const firstChain = Object.keys(this.walletProvider.chains)[0];
-            return this.walletProvider.getWalletClient(
-              firstChain
-            );
+            return this.walletProvider.getWalletClient(firstChain);
           },
           switchChain: async (chainId) => {
             logger.debug(`\u{1F504} LiFi requesting chain switch to ${chainId}...`);
@@ -24858,9 +25097,7 @@ var BridgeAction = class {
       return chainConfig5.nativeCurrency.decimals;
     }
     try {
-      const decimalsAbi = parseAbi([
-        "function decimals() view returns (uint8)"
-      ]);
+      const decimalsAbi = parseAbi(["function decimals() view returns (uint8)"]);
       const decimals = await this.walletProvider.getPublicClient(chainName).readContract({
         address: tokenAddress,
         abi: decimalsAbi,
@@ -24868,10 +25105,7 @@ var BridgeAction = class {
       });
       return decimals;
     } catch (error) {
-      elizaLogger2.error(
-        `Failed to get decimals for token ${tokenAddress} on ${chainName}:`,
-        error
-      );
+      elizaLogger2.error(`Failed to get decimals for token ${tokenAddress} on ${chainName}:`, error);
       return 18;
     }
   }
@@ -24888,24 +25122,15 @@ var BridgeAction = class {
           }
           return txRequest;
         } catch (error) {
-          console.warn(
-            "\u26A0\uFE0F Gas optimization failed, using default values:",
-            error
-          );
+          console.warn("\u26A0\uFE0F Gas optimization failed, using default values:", error);
           return txRequest;
         }
       },
       // Exchange rate update handler for better UX
       acceptExchangeRateUpdateHook: async (params) => {
         const { toToken, oldToAmount, newToAmount } = params;
-        const oldAmountFormatted = formatUnits(
-          BigInt(oldToAmount),
-          toToken.decimals
-        );
-        const newAmountFormatted = formatUnits(
-          BigInt(newToAmount),
-          toToken.decimals
-        );
+        const oldAmountFormatted = formatUnits(BigInt(oldToAmount), toToken.decimals);
+        const newAmountFormatted = formatUnits(BigInt(newToAmount), toToken.decimals);
         const priceChange = (Number(newToAmount) - Number(oldToAmount)) / Number(oldToAmount) * 100;
         logger.debug(`   Exchange rate changed for ${toToken.symbol}:`);
         logger.debug(`   Old amount: ${oldAmountFormatted}`);
@@ -24925,9 +25150,7 @@ var BridgeAction = class {
       // Route monitoring and progress tracking
       updateRouteHook: (updatedRoute) => {
         const status = this.updateRouteStatus(routeId, updatedRoute);
-        logger.debug(
-          `\u{1F4CA} Route ${routeId} progress: ${status.currentStep}/${status.totalSteps}`
-        );
+        logger.debug(`\u{1F4CA} Route ${routeId} progress: ${status.currentStep}/${status.totalSteps}`);
         status.transactionHashes.forEach((hash, index2) => {
           logger.debug(`\u{1F517} Transaction ${index2 + 1}: ${hash}`);
         });
@@ -24940,9 +25163,7 @@ var BridgeAction = class {
         logger.debug(`\u{1F504} Switching to chain ${chainId}...`);
         try {
           const chainName = this.getChainNameById(chainId);
-          const walletClient = this.walletProvider.getWalletClient(
-            chainName
-          );
+          const walletClient = this.walletProvider.getWalletClient(chainName);
           logger.debug("\u2705 Chain switch successful");
           return walletClient;
         } catch (error) {
@@ -25017,9 +25238,7 @@ var BridgeAction = class {
           error = `Bridge failed: ${status.substatus || "Unknown error"}`;
           logger.debug(`\u274C Bridge failed: ${error}`);
         } else if (status.status === "PENDING") {
-          logger.debug(
-            `\u23F3 Bridge still pending: ${status.substatus || "Processing..."}`
-          );
+          logger.debug(`\u23F3 Bridge still pending: ${status.substatus || "Processing..."}`);
         }
         const updatedStatus = {
           ...routeStatus2,
@@ -25034,9 +25253,7 @@ var BridgeAction = class {
       } catch (statusError) {
         console.warn(`\u26A0\uFE0F Status check attempt ${attempt} failed:`, statusError);
         if (attempt >= maxAttempts - 5) {
-          logger.debug(
-            "\u23F0 Status polling timed out, but transaction may still be processing..."
-          );
+          logger.debug("\u23F0 Status polling timed out, but transaction may still be processing...");
         }
       }
     }
@@ -25057,36 +25274,17 @@ var BridgeAction = class {
     logger.debug("\u{1F309} Initiating bridge operation...");
     logger.debug(`   From: ${params.fromChain} \u2192 To: ${params.toChain}`);
     logger.debug(`   Amount: ${params.amount} tokens`);
-    const fromChainConfig = this.walletProvider.getChainConfigs(
-      params.fromChain
-    );
+    const fromChainConfig = this.walletProvider.getChainConfigs(params.fromChain);
     const toChainConfig = this.walletProvider.getChainConfigs(params.toChain);
-    const resolvedFromToken = await this.resolveTokenAddress(
-      params.fromToken,
-      fromChainConfig.id
-    );
-    const resolvedToToken = await this.resolveTokenAddress(
-      params.toToken,
-      toChainConfig.id
-    );
+    const resolvedFromToken = await this.resolveTokenAddress(params.fromToken, fromChainConfig.id);
+    const resolvedToToken = await this.resolveTokenAddress(params.toToken, toChainConfig.id);
     logger.debug(`\u{1F50D} Resolved tokens:`);
-    logger.debug(
-      `   ${params.fromToken} on ${params.fromChain} \u2192 ${resolvedFromToken}`
-    );
-    logger.debug(
-      `   ${params.toToken} on ${params.toChain} \u2192 ${resolvedToToken}`
-    );
-    const fromTokenDecimals = await this.getTokenDecimals(
-      resolvedFromToken,
-      params.fromChain
-    );
-    logger.debug(
-      `\u{1F522} Token decimals: ${fromTokenDecimals} for ${params.fromToken}`
-    );
+    logger.debug(`   ${params.fromToken} on ${params.fromChain} \u2192 ${resolvedFromToken}`);
+    logger.debug(`   ${params.toToken} on ${params.toChain} \u2192 ${resolvedToToken}`);
+    const fromTokenDecimals = await this.getTokenDecimals(resolvedFromToken, params.fromChain);
+    logger.debug(`\u{1F522} Token decimals: ${fromTokenDecimals} for ${params.fromToken}`);
     const fromAmountParsed = parseUnits(params.amount, fromTokenDecimals);
-    logger.debug(
-      `\u{1F4B0} Parsed amount: ${params.amount} \u2192 ${fromAmountParsed.toString()}`
-    );
+    logger.debug(`\u{1F4B0} Parsed amount: ${params.amount} \u2192 ${fromAmountParsed.toString()}`);
     const routesResult = await getRoutes({
       fromChainId: fromChainConfig.id,
       toChainId: toChainConfig.id,
@@ -25114,13 +25312,9 @@ var BridgeAction = class {
     const selectedRoute = routesResult.routes[0];
     const routeId = `bridge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     logger.debug(`\u{1F4CB} Selected route ${routeId}:`);
-    logger.debug(
-      `   Gas cost: ${selectedRoute.gasCostUSD || "Unknown"} USD`
-    );
+    logger.debug(`   Gas cost: ${selectedRoute.gasCostUSD || "Unknown"} USD`);
     logger.debug(`   Steps: ${selectedRoute.steps.length}`);
-    logger.debug(
-      `   Tools: ${selectedRoute.steps.map((s) => s.tool).join(" \u2192 ")}`
-    );
+    logger.debug(`   Tools: ${selectedRoute.steps.map((s) => s.tool).join(" \u2192 ")}`);
     try {
       const executionOptions = this.createExecutionOptions(routeId, void 0);
       const executedRoute = await executeRoute(selectedRoute, executionOptions);
@@ -25130,9 +25324,7 @@ var BridgeAction = class {
       if (!sourceSteps.length) {
         throw new Error("No transaction hashes found in executed route");
       }
-      const mainTxHash = sourceSteps[0].execution?.process?.find(
-        (p) => p.txHash
-      )?.txHash;
+      const mainTxHash = sourceSteps[0].execution?.process?.find((p) => p.txHash)?.txHash;
       if (!mainTxHash) {
         throw new Error("No transaction hash found in route execution");
       }
@@ -25262,20 +25454,12 @@ var bridgeAction = {
       state = await runtime.composeState(_message, ["RECENT_MESSAGES"], true);
     }
     try {
-      const bridgeOptions = await buildBridgeDetails(
-        state,
-        runtime,
-        walletProvider
-      );
+      const bridgeOptions = await buildBridgeDetails(state, runtime, walletProvider);
       logger.debug("###### BRIDGE OPTIONS", bridgeOptions);
       const bridgeResp = await action.bridge(bridgeOptions, (status) => {
-        logger.debug(
-          `\u{1F504} Bridge progress: ${status.currentStep}/${status.totalSteps}`
-        );
+        logger.debug(`\u{1F504} Bridge progress: ${status.currentStep}/${status.totalSteps}`);
         if (status.transactionHashes.length > 0) {
-          logger.debug(
-            `\u{1F4DD} Recent transactions: ${status.transactionHashes.slice(-2).join(", ")}`
-          );
+          logger.debug(`\u{1F4DD} Recent transactions: ${status.transactionHashes.slice(-2).join(", ")}`);
         }
       });
       logger.debug("###### BRIDGE RESP", bridgeResp);
@@ -25333,12 +25517,7 @@ Please check your balance, network connectivity, and try again.`,
       }
     ]
   ],
-  similes: [
-    "CROSS_CHAIN_TRANSFER",
-    "CHAIN_BRIDGE",
-    "MOVE_CROSS_CHAIN",
-    "BRIDGE_TOKENS"
-  ]
+  similes: ["CROSS_CHAIN_TRANSFER", "CHAIN_BRIDGE", "MOVE_CROSS_CHAIN", "BRIDGE_TOKENS"]
 };
 async function checkBridgeStatus(txHash, fromChainId, toChainId, tool = "stargateV2Bus") {
   try {
@@ -25369,12 +25548,7 @@ async function checkBridgeStatus(txHash, fromChainId, toChainId, tool = "stargat
 }
 
 // src/actions/swap.ts
-import {
-  ModelType as ModelType2,
-  composePromptFromState as composePromptFromState2,
-  elizaLogger as elizaLogger3,
-  parseKeyValueXml as parseKeyValueXml2
-} from "@elizaos/core";
+import { ModelType as ModelType2, composePromptFromState as composePromptFromState2, elizaLogger as elizaLogger3, parseKeyValueXml as parseKeyValueXml2 } from "@elizaos/core";
 import {
   createConfig as createConfig2,
   getRoutes as getRoutes2,
@@ -25463,17 +25637,8 @@ var SwapAction = class {
     const [fromAddress] = await walletClient.getAddresses();
     const chainConfig5 = this.walletProvider.getChainConfigs(params.chain);
     const chainId = chainConfig5.id;
-    const resolvedFromToken = await this.resolveTokenAddress(
-      params.fromToken,
-      chainId
-    );
-    const resolvedToToken = await this.resolveTokenAddress(
-      params.toToken,
-      chainId
-    );
-    console.log(
-      `###### RESOLVED TOKENS: ${params.fromToken} -> ${resolvedFromToken}, ${params.toToken} -> ${resolvedToToken}`
-    );
+    const resolvedFromToken = await this.resolveTokenAddress(params.fromToken, chainId);
+    const resolvedToToken = await this.resolveTokenAddress(params.toToken, chainId);
     const resolvedParams = {
       ...params,
       fromToken: resolvedFromToken,
@@ -25481,14 +25646,18 @@ var SwapAction = class {
     };
     const slippageLevels = [0.01, 0.015, 0.02];
     let lastError;
+    let attemptCount = 0;
     for (const slippage of slippageLevels) {
       try {
+        elizaLogger3.info(`Attempting swap with ${(slippage * 100).toFixed(1)}% slippage...`);
         const sortedQuotes = await this.getSortedQuotes(
           fromAddress,
           resolvedParams,
           slippage
         );
         for (const quote of sortedQuotes) {
+          attemptCount++;
+          elizaLogger3.info(`Trying ${quote.aggregator} (attempt ${attemptCount})...`);
           let res;
           switch (quote.aggregator) {
             case "lifi":
@@ -25498,24 +25667,29 @@ var SwapAction = class {
               res = await this.executeBebopQuote(quote, resolvedParams);
               break;
             default:
-              throw new Error("No aggregator found");
+              throw new Error("Unknown aggregator");
           }
-          if (res !== void 0) return res;
+          if (res !== void 0) {
+            elizaLogger3.info(`\u2705 Swap succeeded via ${quote.aggregator}!`);
+            return res;
+          }
+          elizaLogger3.warn(`${quote.aggregator} attempt failed, trying next option...`);
         }
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        if (lastError.message.includes("price movement") || lastError.message.includes("Return amount is not enough") || lastError.message.includes("reverted") || lastError.message.includes("MEV frontrunning")) {
-          console.log(
-            `###### SWAP FAILED WITH ${slippage * 100}% SLIPPAGE: ${lastError.message}`
-          );
-          console.log(`###### RETRYING WITH FRESH QUOTES AND HIGHER SLIPPAGE`);
+        elizaLogger3.warn(
+          `Swap attempt with ${(slippage * 100).toFixed(1)}% slippage failed: ${lastError.message}`
+        );
+        if (lastError.message.includes("price movement") || lastError.message.includes("Return amount is not enough") || lastError.message.includes("reverted") || lastError.message.includes("MEV frontrunning") || lastError.message.includes("TRANSFER_FROM_FAILED")) {
           await new Promise((resolve) => setTimeout(resolve, 2e3));
           continue;
         }
         throw lastError;
       }
     }
-    throw lastError || new Error("Execution failed");
+    const errorMsg = `All swap attempts failed after ${attemptCount} tries. ${lastError?.message || "Unknown error"}`;
+    elizaLogger3.error(errorMsg);
+    throw new Error(errorMsg);
   }
   async getSortedQuotes(fromAddress, params, slippage = 0.01) {
     const decimalsAbi = parseAbi(["function decimals() view returns (uint8)"]);
@@ -25538,9 +25712,7 @@ var SwapAction = class {
     const sortedQuotes = quotesResults.filter(
       (quote) => quote !== void 0
     );
-    sortedQuotes.sort(
-      (a, b) => BigInt(a.minOutputAmount) > BigInt(b.minOutputAmount) ? -1 : 1
-    );
+    sortedQuotes.sort((a, b) => BigInt(a.minOutputAmount) > BigInt(b.minOutputAmount) ? -1 : 1);
     if (sortedQuotes.length === 0) throw new Error("No routes found");
     return sortedQuotes;
   }
@@ -25579,9 +25751,12 @@ var SwapAction = class {
     try {
       const chainName = this.bebopChainsMap[params.chain] ?? params.chain;
       const url = `https://api.bebop.xyz/router/${chainName}/v1/quote`;
+      const chainConfig5 = this.walletProvider.getChainConfigs(params.chain);
+      const resolvedFromToken = await this.resolveTokenAddress(params.fromToken, chainConfig5.id);
+      const resolvedToToken = await this.resolveTokenAddress(params.toToken, chainConfig5.id);
       const reqParams = new URLSearchParams({
-        sell_tokens: params.fromToken,
-        buy_tokens: params.toToken,
+        sell_tokens: resolvedFromToken,
+        buy_tokens: resolvedToToken,
         sell_amounts: parseUnits(params.amount, fromTokenDecimals).toString(),
         taker_address: fromAddress,
         approval_type: "Standard",
@@ -25594,9 +25769,7 @@ var SwapAction = class {
         headers: { accept: "application/json" }
       });
       if (!response.ok) {
-        throw Error(
-          `Bebop API error: ${response.status} ${response.statusText}`
-        );
+        throw Error(`Bebop API error: ${response.status} ${response.statusText}`);
       }
       const data = await response.json();
       if (!data.routes || !Array.isArray(data.routes) || data.routes.length === 0) {
@@ -25611,17 +25784,27 @@ var SwapAction = class {
         sellAmount: parseUnits(params.amount, fromTokenDecimals).toString(),
         approvalTarget: firstRoute.quote.approvalTarget,
         from: firstRoute.quote.tx.from,
-        value: firstRoute.quote.tx.value.toString(),
+        value: firstRoute.quote.tx.value?.toString() || "0",
         to: firstRoute.quote.tx.to,
-        gas: firstRoute.quote.tx.gas.toString(),
-        gasPrice: firstRoute.quote.tx.gasPrice.toString()
+        gas: firstRoute.quote.tx.gas?.toString() || "0",
+        gasPrice: firstRoute.quote.tx.gasPrice?.toString() || "0"
       };
-      if (!firstRoute.quote.buyTokens || !firstRoute.quote.buyTokens[params.toToken]) {
+      if (!firstRoute.quote.buyTokens) {
         throw new Error("Missing buyTokens information in Bebop API response");
+      }
+      let buyTokenInfo = firstRoute.quote.buyTokens[resolvedToToken] || firstRoute.quote.buyTokens[params.toToken] || firstRoute.quote.buyTokens[resolvedToToken.toLowerCase()];
+      if (!buyTokenInfo) {
+        const buyTokenKeys = Object.keys(firstRoute.quote.buyTokens);
+        if (buyTokenKeys.length > 0) {
+          buyTokenInfo = firstRoute.quote.buyTokens[buyTokenKeys[0]];
+        }
+      }
+      if (!buyTokenInfo || !buyTokenInfo.minimumAmount) {
+        throw new Error("Cannot determine minimum output amount from Bebop response");
       }
       return {
         aggregator: "bebop",
-        minOutputAmount: firstRoute.quote.buyTokens[params.toToken].minimumAmount.toString(),
+        minOutputAmount: buyTokenInfo.minimumAmount.toString(),
         swapData: route
       };
     } catch (error) {
@@ -25639,22 +25822,17 @@ var SwapAction = class {
       }
       const stepWithTx = await getStepTransaction(step2);
       if (!stepWithTx.transactionRequest) {
-        throw new Error(
-          "No transaction request found in step after getStepTransaction"
-        );
+        throw new Error("No transaction request found in step after getStepTransaction");
       }
       const chainId = route.fromChainId;
       const chainName = Object.keys(this.walletProvider.chains).find(
         (name) => this.walletProvider.getChainConfigs(name).id === chainId
       );
       if (!chainName) {
-        throw new Error(
-          `Chain with ID ${chainId} not found in wallet provider`
-        );
+        throw new Error(`Chain with ID ${chainId} not found in wallet provider`);
       }
-      const walletClient = this.walletProvider.getWalletClient(
-        chainName
-      );
+      const walletClient = this.walletProvider.getWalletClient(chainName);
+      const publicClient = this.walletProvider.getPublicClient(chainName);
       if (!walletClient.account) {
         throw new Error("Wallet account is not available");
       }
@@ -25665,7 +25843,7 @@ var SwapAction = class {
           "function allowance(address,address) view returns (uint256)"
         ]);
         const spenderAddress = txRequest.to;
-        const allowance = await this.walletProvider.getPublicClient(chainName).readContract({
+        const allowance = await publicClient.readContract({
           address: fromToken.address,
           abi: allowanceAbi,
           functionName: "allowance",
@@ -25673,7 +25851,7 @@ var SwapAction = class {
         });
         const requiredAmount = BigInt(route.fromAmount);
         if (allowance < requiredAmount) {
-          console.log(`###### APPROVING ${fromToken.symbol} FOR LIFI CONTRACT`);
+          elizaLogger3.info(`Approving ${fromToken.symbol} for LiFi contract...`);
           const approvalData = encodeFunctionData({
             abi: parseAbi(["function approve(address,uint256)"]),
             functionName: "approve",
@@ -25686,6 +25864,16 @@ var SwapAction = class {
             data: approvalData,
             chain: walletClient.chain
           });
+          elizaLogger3.info(`Waiting for approval confirmation...`);
+          const approvalReceipt = await publicClient.waitForTransactionReceipt({
+            hash: approvalTx,
+            timeout: 6e4
+            // 60 second timeout
+          });
+          if (approvalReceipt.status === "reverted") {
+            throw new Error(`Token approval failed. Transaction hash: ${approvalTx}`);
+          }
+          elizaLogger3.info(`Token approval confirmed. Proceeding with swap...`);
         }
       }
       const hash = await walletClient.sendTransaction({
@@ -25694,15 +25882,11 @@ var SwapAction = class {
         value: BigInt(txRequest.value || "0"),
         data: txRequest.data,
         chain: walletClient.chain,
-        gas: BigInt(Math.floor(Number(txRequest.gasLimit || "0") * 1.2)),
+        gas: txRequest.gasLimit ? BigInt(Math.floor(Number(txRequest.gasLimit) * 1.2)) : void 0,
         // Add 20% gas buffer
         gasPrice: txRequest.gasPrice ? BigInt(Math.floor(Number(txRequest.gasPrice) * 1.1)) : void 0
         // 10% higher gas price for MEV protection
       });
-      console.log(`###### WAITING FOR TRANSACTION RECEIPT: ${hash}`);
-      const publicClient = this.walletProvider.getPublicClient(
-        chainName
-      );
       const receipt = await publicClient.waitForTransactionReceipt({
         hash,
         timeout: 6e4
@@ -25713,9 +25897,6 @@ var SwapAction = class {
           `Transaction reverted on-chain. Hash: ${hash}. This could be due to price movement, insufficient gas, or MEV frontrunning. Please try again.`
         );
       }
-      console.log(
-        `###### TRANSACTION CONFIRMED: ${hash}, Gas Used: ${receipt.gasUsed}`
-      );
       return {
         hash,
         from: walletClient.account.address,
@@ -25735,38 +25916,53 @@ var SwapAction = class {
         );
       }
       elizaLogger3.error(`Failed to execute lifi quote: ${errorMessage}`);
-      return void 0;
+      throw new Error(errorMessage);
     }
   }
   async executeBebopQuote(quote, params) {
     try {
       const bebopRoute = quote.swapData;
-      const allowanceAbi = parseAbi([
-        "function allowance(address,address) view returns (uint256)"
-      ]);
-      const allowance = await this.walletProvider.getPublicClient(params.chain).readContract({
-        address: params.fromToken,
-        abi: allowanceAbi,
-        functionName: "allowance",
-        args: [bebopRoute.from, bebopRoute.approvalTarget]
-      });
       const walletClient = this.walletProvider.getWalletClient(params.chain);
+      const publicClient = this.walletProvider.getPublicClient(params.chain);
       if (!walletClient.account) {
         throw new Error("Wallet account is not available");
       }
-      if (allowance < BigInt(bebopRoute.sellAmount)) {
-        const approvalData = encodeFunctionData({
-          abi: parseAbi(["function approve(address,uint256)"]),
-          functionName: "approve",
-          args: [bebopRoute.approvalTarget, BigInt(bebopRoute.sellAmount)]
+      const chainConfig5 = this.walletProvider.getChainConfigs(params.chain);
+      const resolvedFromToken = await this.resolveTokenAddress(params.fromToken, chainConfig5.id);
+      if (resolvedFromToken !== "0x0000000000000000000000000000000000000000") {
+        const allowanceAbi = parseAbi([
+          "function allowance(address,address) view returns (uint256)"
+        ]);
+        const allowance = await publicClient.readContract({
+          address: resolvedFromToken,
+          abi: allowanceAbi,
+          functionName: "allowance",
+          args: [walletClient.account.address, bebopRoute.approvalTarget]
         });
-        await walletClient.sendTransaction({
-          account: walletClient.account,
-          to: params.fromToken,
-          value: 0n,
-          data: approvalData,
-          chain: walletClient.chain
-        });
+        if (allowance < BigInt(bebopRoute.sellAmount)) {
+          elizaLogger3.info(`Approving token for Bebop...`);
+          const approvalData = encodeFunctionData({
+            abi: parseAbi(["function approve(address,uint256)"]),
+            functionName: "approve",
+            args: [bebopRoute.approvalTarget, BigInt(bebopRoute.sellAmount)]
+          });
+          const approvalTx = await walletClient.sendTransaction({
+            account: walletClient.account,
+            to: resolvedFromToken,
+            value: 0n,
+            data: approvalData,
+            chain: walletClient.chain
+          });
+          elizaLogger3.info(`Waiting for approval confirmation...`);
+          const approvalReceipt = await publicClient.waitForTransactionReceipt({
+            hash: approvalTx,
+            timeout: 6e4
+          });
+          if (approvalReceipt.status === "reverted") {
+            throw new Error(`Token approval failed. Transaction hash: ${approvalTx}`);
+          }
+          elizaLogger3.info(`Token approval confirmed. Proceeding with swap...`);
+        }
       }
       const hash = await walletClient.sendTransaction({
         account: walletClient.account,
@@ -25775,17 +25971,25 @@ var SwapAction = class {
         data: bebopRoute.data,
         chain: walletClient.chain
       });
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash,
+        timeout: 6e4
+      });
+      if (receipt.status === "reverted") {
+        throw new Error(`Bebop swap reverted. Transaction hash: ${hash}`);
+      }
       return {
         hash,
         from: walletClient.account.address,
         to: bebopRoute.to,
         value: BigInt(bebopRoute.value),
-        data: bebopRoute.data
+        data: bebopRoute.data,
+        chainId: chainConfig5.id
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       elizaLogger3.error(`Failed to execute bebop quote: ${errorMessage}`);
-      return void 0;
+      throw new Error(errorMessage);
     }
   }
 };
@@ -25794,7 +25998,6 @@ var buildSwapDetails = async (state, _message, runtime, wp) => {
   const balances = await wp.getWalletBalances();
   state = await runtime.composeState(_message, ["RECENT_MESSAGES"], true);
   state.supportedChains = chains.join(" | ");
-  console.log("###### STATE", state);
   state.chainBalances = Object.entries(balances).map(([chain, balance]) => {
     const chainConfig5 = wp.getChainConfigs(chain);
     return `${chain}: ${balance} ${chainConfig5.nativeCurrency.symbol}`;
@@ -25863,20 +26066,19 @@ var swapAction = {
       if (!state) {
         state = await runtime.composeState(_message);
       }
-      const swapOptions = await buildSwapDetails(
-        state,
-        _message,
-        runtime,
-        walletProvider
-      );
+      const swapOptions = await buildSwapDetails(state, _message, runtime, walletProvider);
       const swapResp = await action.swap(swapOptions);
       if (callback) {
         callback({
-          text: `Successfully swapped ${swapOptions.amount} ${swapOptions.fromToken} for ${swapOptions.toToken} on ${swapOptions.chain} Transaction Hash: ${swapResp.hash}`,
+          text: `Successfully swapped ${swapOptions.amount} ${swapOptions.fromToken} for ${swapOptions.toToken} on ${swapOptions.chain}
+Transaction Hash: ${swapResp.hash}`,
           content: {
             success: true,
             hash: swapResp.hash,
-            chain: swapOptions.chain
+            chain: swapOptions.chain,
+            fromToken: swapOptions.fromToken,
+            toToken: swapOptions.toToken,
+            amount: swapOptions.amount
           }
         });
       }
@@ -25884,10 +26086,33 @@ var swapAction = {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("Error in swap handler:", errorMessage);
+      let userFriendlyMessage = "";
+      if (errorMessage.includes("TRANSFER_FROM_FAILED")) {
+        userFriendlyMessage = "The swap failed because the tokens couldn't be transferred. This usually happens when you don't have enough tokens or the token has special restrictions.";
+      } else if (errorMessage.includes("price movement") || errorMessage.includes("slippage")) {
+        userFriendlyMessage = "The swap failed because the token price changed too much while processing. This happens in volatile markets.";
+      } else if (errorMessage.includes("MEV") || errorMessage.includes("frontrunning")) {
+        userFriendlyMessage = "The swap was blocked by trading bots that tried to take advantage of your transaction.";
+      } else if (errorMessage.includes("reverted")) {
+        userFriendlyMessage = "The swap couldn't go through. This often happens when there isn't enough liquidity for the trade.";
+      } else if (errorMessage.includes("No routes found")) {
+        userFriendlyMessage = "I couldn't find a way to swap these tokens. They might not be tradeable on this network.";
+      } else if (errorMessage.includes("All swap attempts failed")) {
+        userFriendlyMessage = "The swap failed after trying different options. The tokens might have very low liquidity or trading restrictions.";
+      } else {
+        userFriendlyMessage = "The swap couldn't be completed.";
+      }
       if (callback) {
         callback({
-          text: `Error: ${errorMessage}`,
-          content: { error: errorMessage }
+          text: userFriendlyMessage,
+          content: {
+            success: false,
+            error: errorMessage,
+            fromToken: state?.swapOptions?.fromToken,
+            toToken: state?.swapOptions?.toToken,
+            amount: state?.swapOptions?.amount,
+            chain: state?.swapOptions?.chain
+          }
         });
       }
       return false;
@@ -25919,23 +26144,63 @@ import {
   parseKeyValueXml as parseKeyValueXml3,
   composePromptFromState as composePromptFromState3
 } from "@elizaos/core";
+var getTransferCallData = async (amount, recipientAddress) => {
+  const abi2 = [
+    {
+      constant: false,
+      inputs: [
+        {
+          name: "to",
+          type: "address"
+        },
+        {
+          name: "amount",
+          type: "uint256"
+        }
+      ],
+      name: "transfer",
+      outputs: [],
+      payable: true,
+      stateMutability: "nonpayable",
+      type: "function"
+    }
+  ];
+  return encodeFunctionData({
+    abi: abi2,
+    functionName: "transfer",
+    args: [recipientAddress, amount]
+  });
+};
+var checkTransferDetails = (transferParams) => {
+  if (transferParams.recipientAddress === zeroAddress || transferParams.toAddress === zeroAddress) {
+    throw new Error("0 Address Detected");
+  }
+  if (!transferParams.token.length) {
+    throw new Error("No Token Detected");
+  }
+  if (!transferParams.amount) {
+    throw new Error("0 transfer!");
+  }
+};
+var isNativeTransfer = (transferParams) => transferParams.toAddress === transferParams.recipientAddress;
 var TransferAction = class {
   constructor(walletProvider) {
     this.walletProvider = walletProvider;
   }
   async transfer(params) {
-    if (!params.data) {
-      params.data = "0x";
+    if (!params.amount) {
+      throw new Error("0 transfer!");
     }
     const walletClient = this.walletProvider.getWalletClient(params.fromChain);
     if (!walletClient.account) {
       throw new Error("Wallet account is not available");
     }
     try {
+      const value = isNativeTransfer(params) ? params.amount : BigInt(0);
       const hash = await walletClient.sendTransaction({
         account: walletClient.account,
         to: params.toAddress,
-        value: parseEther(params.amount),
+        value,
         data: params.data,
         chain: walletClient.chain
       });
@@ -25943,7 +26208,7 @@ var TransferAction = class {
         hash,
         from: walletClient.account.address,
         to: params.toAddress,
-        value: parseEther(params.amount),
+        value,
         data: params.data
       };
     } catch (error) {
@@ -25968,54 +26233,28 @@ var buildTransferDetails = async (state, _message, runtime, wp) => {
   const xmlResponse = await runtime.useModel(ModelType3.TEXT_SMALL, {
     prompt: context
   });
-  let parsedXml = parseKeyValueXml3(xmlResponse);
+  const parsedXml = parseKeyValueXml3(xmlResponse);
   if (!parsedXml) {
-    throw new Error(
-      "Failed to parse XML response from LLM for transfer details."
+    throw new Error("Failed to parse XML response from LLM for transfer details.");
+  }
+  checkTransferDetails(parsedXml);
+  const transferDetails = {
+    ...parsedXml,
+    fromChain: parsedXml.fromChain,
+    recipientAddress: getAddress(parsedXml.recipientAddress),
+    tokenDecimals: Number(parsedXml.tokenDecimals),
+    toAddress: getAddress(parsedXml.toAddress),
+    token: parsedXml.token
+  };
+  transferDetails.amount = parseUnits(parsedXml.amount, transferDetails.tokenDecimals);
+  if (isNativeTransfer(transferDetails)) {
+    transferDetails.data = "0x";
+  } else {
+    transferDetails.data = await getTransferCallData(
+      transferDetails.amount,
+      transferDetails.recipientAddress
     );
   }
-  const abi2 = [
-    {
-      "constant": false,
-      "inputs": [
-        {
-          "name": "_sireId",
-          "type": "address"
-        },
-        {
-          "name": "_matronId",
-          "type": "uint256"
-        }
-      ],
-      "name": "transfer",
-      "outputs": [],
-      "payable": true,
-      "stateMutability": "nonpayable",
-      "type": "function"
-    }
-  ];
-  let data = "";
-  if (parsedXml.amount !== "0") {
-    data = encodeFunctionData({
-      abi: abi2,
-      functionName: "transfer",
-      args: [
-        parsedXml.recipientAddress,
-        parsedXml.amount
-      ]
-    });
-  } else {
-    data = encodeFunctionData({
-      abi: abi2,
-      functionName: "transfer",
-      args: [
-        parsedXml.recipientAddress,
-        parsedXml.tokenDecimals
-      ]
-    });
-  }
-  parsedXml.data = data;
-  const transferDetails = parsedXml;
   const normalizedChainName = transferDetails.fromChain.toLowerCase();
   const existingChain = wp.chains[normalizedChainName];
   if (!existingChain) {
@@ -26035,26 +26274,20 @@ var transferAction = {
     }
     const walletProvider = await initWalletProvider(runtime);
     const action = new TransferAction(walletProvider);
-    const paramOptions = await buildTransferDetails(
-      state,
-      message,
-      runtime,
-      walletProvider
-    );
+    const paramOptions = await buildTransferDetails(state, message, runtime, walletProvider);
     try {
       const transferResp = await action.transfer(paramOptions);
       if (callback) {
-        if (paramOptions.amount)
-          callback({
-            text: `Successfully transferred ${paramOptions.amount} tokens to ${paramOptions.toAddress} Transaction Hash: https://www.basescan.org/tx/${transferResp.hash}`,
-            content: {
-              success: true,
-              hash: transferResp.hash,
-              amount: formatEther(transferResp.value),
-              recipient: transferResp.to,
-              chain: paramOptions.fromChain
-            }
-          });
+        callback({
+          text: `Successfully transferred ${formatUnits(paramOptions.amount, paramOptions.tokenDecimals)} tokens to ${paramOptions.recipientAddress} Transaction Hash: ${transferResp.hash}`,
+          content: {
+            success: true,
+            hash: transferResp.hash,
+            amount: paramOptions.amount,
+            recipient: paramOptions.recipientAddress,
+            chain: paramOptions.fromChain
+          }
+        });
       }
       return true;
     } catch (error) {
@@ -26091,12 +26324,7 @@ var transferAction = {
       }
     ]
   ],
-  similes: [
-    "EVM_TRANSFER",
-    "EVM_SEND_TOKENS",
-    "EVM_TOKEN_TRANSFER",
-    "EVM_MOVE_TOKENS"
-  ]
+  similes: ["EVM_TRANSFER", "EVM_SEND_TOKENS", "EVM_TOKEN_TRANSFER", "EVM_MOVE_TOKENS"]
 };
 
 // src/service.ts
@@ -26150,9 +26378,7 @@ var EVMService = class _EVMService extends Service {
       const balances = await this.walletProvider.getWalletBalances();
       const chainDetails = Object.entries(balances).map(([chainName, balance]) => {
         try {
-          const chain = this.walletProvider.getChainConfigs(
-            chainName
-          );
+          const chain = this.walletProvider.getChainConfigs(chainName);
           return {
             chainName,
             balance,
@@ -26182,16 +26408,12 @@ var EVMService = class _EVMService extends Service {
   }
   async getCachedData() {
     try {
-      const cachedData = await this.runtime.getCache(
-        EVM_WALLET_DATA_CACHE_KEY
-      );
+      const cachedData = await this.runtime.getCache(EVM_WALLET_DATA_CACHE_KEY);
       const now = Date.now();
       if (!cachedData || now - cachedData.timestamp > CACHE_REFRESH_INTERVAL_MS) {
         logger2.log("EVM wallet data is stale, refreshing...");
         await this.refreshWalletData();
-        const refreshedData = await this.runtime.getCache(
-          EVM_WALLET_DATA_CACHE_KEY
-        );
+        const refreshedData = await this.runtime.getCache(EVM_WALLET_DATA_CACHE_KEY);
         return refreshedData || void 0;
       }
       return cachedData;
@@ -26249,10 +26471,13 @@ export {
   WalletProvider,
   bridgeAction,
   bridgeTemplate,
+  buildTransferDetails,
   checkBridgeStatus,
+  checkTransferDetails,
   index_default as default,
   evmPlugin,
   evmWalletProvider,
+  getTransferCallData,
   initWalletProvider,
   swapAction,
   swapTemplate,
