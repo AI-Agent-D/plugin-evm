@@ -9,16 +9,13 @@ vi.mock('@elizaos/core', async () => {
 })
 
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
-import {getTokenDecimalsAddress, evmWalletERC20Provider} from 'src/providers/walletERC20';
+import {evmWalletERC20Provider} from 'src/providers/walletERC20';
 
 import { WalletProvider } from '../providers/wallet';
 import { sepolia, baseSepolia, optimismSepolia, getTestChains } from './custom-chain';
 import { AgentRuntime, IAgentRuntime, IDatabaseAdapter, Memory, State, stringToUuid, parseJSONObjectFromText } from '@elizaos/core';
 import { character } from './custom-character';
 import { createMockState } from './optionalTests/transfer-buildTransfer.test';
-import { getToken } from '@lifi/sdk';
-import evmPlugin from 'src';
-import { parse } from 'path';
 
 // Test environment variables - in real tests you'd use a funded testnet wallet
 const TEST_PRIVATE_KEY = process.env.TEST_PRIVATE_KEY || generatePrivateKey();

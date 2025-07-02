@@ -5,10 +5,7 @@ import {
   type Hex,
   parseEther,
   formatEther,
-  encodeFunctionData,
   parseUnits,
-  createPublicClient,
-  http,
 } from 'viem';
 
 import { getTransferCallData, TransferAction } from '../actions/transfer';

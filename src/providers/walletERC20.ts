@@ -6,7 +6,6 @@ import {
   type ProviderResult,
   composePromptFromState,
   ModelType,
-  parseKeyValueXml,
   elizaLogger,
   parseJSONObjectFromText,
 } from '@elizaos/core';
@@ -37,16 +36,12 @@ export const getTokenDecimalsAddress = async (
     template: searchAddressTokenTemplate,
   });
 
-  const xmlResponse = await runtime.useModel(ModelType.TEXT_SMALL, {
+  const jsonResponse = await runtime.useModel(ModelType.TEXT_SMALL, {
     ...state,
     prompt: context,
   });
 
-  const parsedJSON = parseJSONObjectFromText(xmlResponse);
-
-  const chainsDataset = {};
-
-  console.log("Here is the parsed json", parsedJSON)
+  const parsedJSON = parseJSONObjectFromText(jsonResponse);
 
   if (!parsedJSON) {
     throw new Error('Failed to parse XML response from LLM for transfer details.');
